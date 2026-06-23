@@ -63,21 +63,45 @@ enum WindowAction: String, CaseIterable, Identifiable {
     }
 }
 
-/// A user-defined size: width/height as fractions of the visible frame, placed centered.
-/// Ideal for 4K screens where full-screen is rarely wanted.
+/// A user-defined size and position, as fractions of the visible frame. Ideal for 4K screens
+/// where full-screen is rarely wanted. `xFraction`/`yFraction` place the window within the
+/// leftover space: 0 = flush left/top, 0.5 = centered, 1 = flush right/bottom.
 struct CustomSize: Codable, Identifiable, Equatable {
     var id = UUID()
     var name: String
     var widthFraction: Double
     var heightFraction: Double
+    var xFraction: Double = 0.5
+    var yFraction: Double = 0.5
 
-    /// Centered target rect in AppKit coordinates within the given visible frame.
+    init(id: UUID = UUID(), name: String, widthFraction: Double, heightFraction: Double,
+         xFraction: Double = 0.5, yFraction: Double = 0.5) {
+        self.id = id
+        self.name = name
+        self.widthFraction = widthFraction
+        self.heightFraction = heightFraction
+        self.xFraction = xFraction
+        self.yFraction = yFraction
+    }
+
+    // Backward-compatible decoding: sizes saved before positioning existed default to centered.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        widthFraction = try c.decode(Double.self, forKey: .widthFraction)
+        heightFraction = try c.decode(Double.self, forKey: .heightFraction)
+        xFraction = try c.decodeIfPresent(Double.self, forKey: .xFraction) ?? 0.5
+        yFraction = try c.decodeIfPresent(Double.self, forKey: .yFraction) ?? 0.5
+    }
+
+    /// Target rect in AppKit coordinates within the given visible frame.
     func rect(in visibleFrame: CGRect) -> CGRect {
         let width = visibleFrame.width * min(1, max(0.05, widthFraction))
         let height = visibleFrame.height * min(1, max(0.05, heightFraction))
-        return CGRect(x: visibleFrame.minX + (visibleFrame.width - width) / 2,
-                      y: visibleFrame.minY + (visibleFrame.height - height) / 2,
-                      width: width,
-                      height: height)
+        let x = visibleFrame.minX + (visibleFrame.width - width) * min(1, max(0, xFraction))
+        // yFraction runs top->bottom; AppKit y is bottom-up, so invert it.
+        let y = visibleFrame.minY + (visibleFrame.height - height) * (1 - min(1, max(0, yFraction)))
+        return CGRect(x: x, y: y, width: width, height: height)
     }
 }

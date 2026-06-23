@@ -225,12 +225,19 @@ final class DisplayManager: ObservableObject {
         #endif
     }
 
-    /// Returns true when we handle the key (consuming it). We only take over for external DDC
-    /// displays; brightness keys over the built-in fall through to macOS (keeps the native HUD).
+    /// Returns true when we handle the key (consuming it). For external DDC displays we always
+    /// take over (the keys otherwise change the built-in, not the external). For the built-in we
+    /// take over only when a brightness cap is set — uncapped, we let macOS handle it natively
+    /// (keeping the native HUD); with a cap we must intercept so the keys can't exceed it.
     private func handleBrightnessKey(up: Bool, isKeyDown: Bool) -> Bool {
         guard prefs.brightnessKeysFollowCursor,
               let display = displayUnderCursor(),
-              display.kind == .external, display.canBrightness else { return false }
+              display.canBrightness else { return false }
+
+        if display.kind == .builtIn, brightnessCap(for: display) >= 1.0 {
+            return false   // no cap on the built-in → let macOS handle the keys natively
+        }
+
         if isKeyDown {
             let step = 1.0 / 16.0
             let newValue = min(1, max(0, display.brightnessUI + (up ? step : -step)))

@@ -10,9 +10,11 @@ Apple Silicon, macOS 14+.
   shows the panel's real %, the thumb stops at the cap, and the over-cap range is greyed out
   (e.g. cap Dell contrast at 75% to avoid washout).
 - **Window management** — move/resize the frontmost window via global keyboard shortcuts,
-  including user-defined **custom sizes** (e.g. "center 60% × 80%"), ideal for 4K screens.
-  Sensible defaults (⌃⌥ + arrows / return, ⌃⌥C, custom Center 60 × 80 = ⌃⌥⌘↵) are seeded on
-  first launch and are fully editable.
+  including user-defined **custom sizes and positions** (e.g. "top-right 40% × 50%"), ideal for
+  4K screens. Each shortcut is unique — reassigning a combo moves it off whatever had it.
+  Sensible defaults (⌃⌥ + arrows / return, ⌃⌥C center, ⌃⌥⌘↵ center-and-fit) are
+  seeded on first launch and are fully editable. **Center** fits the window to the screen —
+  almost-maximized on small/normal displays, a comfortable centered size on large/high-res ones.
 - **Brightness sync** — make an external monitor follow the built-in display's brightness via a
   configurable linear mapping (its level at built-in 0% and at built-in 100%).
 - **Power (Caffeine)** — keep the Mac awake (prevent idle system sleep) and turn the display off
@@ -31,8 +33,8 @@ Apple Silicon, macOS 14+.
 - **Brightness sync:** in **Settings → Displays**, turn on "Follow built-in brightness" for an
   external monitor and set the mapping endpoints; its brightness then tracks the built-in (and
   its menu slider shows a link icon and is disabled).
-- **Window management:** ⌃⌥ + arrows / return snap halves & maximize, ⌃⌥C centers, and the
-  seeded **Center 60 × 80** custom size uses ⌃⌥⌘↵ — all editable, plus add more custom sizes, in
+- **Window management:** ⌃⌥ + arrows / return snap halves & maximize, ⌃⌥C centers, ⌃⌥⌘↵
+  centers-and-fits to the screen — all editable, plus add custom sizes & positions, in
   **Settings → Windows**. The menu also has Left/Right/Center/Maximize buttons. The first window
   action triggers the Accessibility prompt — grant it once. DDC monitor control needs no
   permission.

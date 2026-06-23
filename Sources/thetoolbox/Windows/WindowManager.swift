@@ -14,6 +14,7 @@ final class WindowManager: ObservableObject {
     init() {
         customSizes = prefs.loadCustomSizes()
         seedDefaultsIfNeeded()
+        migrateCenterFitDefault()
         trackActiveApp()
         registerBuiltInShortcuts()
         for size in customSizes { registerCustomHandler(for: size.id) }
@@ -23,7 +24,9 @@ final class WindowManager: ObservableObject {
     /// a "Center 60% × 80%" custom size. Never clobbers a shortcut the user already set, and
     /// won't duplicate the custom size.
     private func seedDefaultsIfNeeded() {
-        let flag = "didSeedWindowDefaults.v1"
+        // Bumped to v2 to seed the new "Center (fit)" default on existing installs too. The
+        // per-name nil check below means no shortcut the user already set is touched.
+        let flag = "didSeedWindowDefaults.v2"
         guard !UserDefaults.standard.bool(forKey: flag) else { return }
         UserDefaults.standard.set(true, forKey: flag)
 
@@ -35,6 +38,7 @@ final class WindowManager: ObservableObject {
             (.windowBottomHalf, .init(.downArrow, modifiers: controlOption)),
             (.windowMaximize, .init(.return, modifiers: controlOption)),
             (.windowCenter, .init(.c, modifiers: controlOption)),
+            (.windowCenterFit, .init(.return, modifiers: [.control, .option, .command])),
         ]
         for (name, shortcut) in builtinDefaults where KeyboardShortcuts.getShortcut(for: name) == nil {
             KeyboardShortcuts.setShortcut(shortcut, for: name)
@@ -44,10 +48,19 @@ final class WindowManager: ObservableObject {
             let size = CustomSize(name: "Center 60% × 80%", widthFraction: 0.6, heightFraction: 0.8)
             customSizes.append(size)
             prefs.saveCustomSizes(customSizes)
-            KeyboardShortcuts.setShortcut(
-                .init(.return, modifiers: [.control, .option, .command]),
-                for: Self.shortcutName(for: size.id)
-            )
+        }
+    }
+
+    /// One-time: "Center" was briefly seeded with ⌃⌥⇧C; switch installs that still carry that
+    /// auto-seeded value to the intended default, ⌃⌥⌘↩. Leaves a deliberate user choice alone.
+    private func migrateCenterFitDefault() {
+        let key = "migratedCenterFitDefault.v1"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        let autoSeeded = KeyboardShortcuts.Shortcut(.c, modifiers: [.control, .option, .shift])
+        if KeyboardShortcuts.getShortcut(for: .windowCenterFit) == autoSeeded {
+            KeyboardShortcuts.setShortcut(.init(.return, modifiers: [.control, .option, .command]),
+                                          for: .windowCenterFit)
         }
     }
 
@@ -94,6 +107,22 @@ final class WindowManager: ObservableObject {
         }
     }
 
+    /// Centers the window at a screen-appropriate size: ~90% of the visible frame, capped to a
+    /// comfortable maximum. Small/normal screens (built-in, 1080p) end up almost maximized; large,
+    /// high-resolution screens (4K-with-room, 5K/6K) get a sensible centered window instead of a
+    /// sprawling one. Sizing is in points, i.e. the screen's usable space.
+    func centerFit() {
+        let maxWidth: CGFloat = 1920
+        let maxHeight: CGFloat = 1200
+        applyFrame { visibleFrame, _ in
+            let width = min(visibleFrame.width * 0.9, maxWidth)
+            let height = min(visibleFrame.height * 0.9, maxHeight)
+            return CGRect(x: visibleFrame.minX + (visibleFrame.width - width) / 2,
+                          y: visibleFrame.minY + (visibleFrame.height - height) / 2,
+                          width: width, height: height)
+        }
+    }
+
     /// Resolves the focused window, figures out which screen it is on, and applies the target
     /// rect (computed in AppKit coordinates from that screen's visible frame).
     private func applyFrame(_ target: (_ visibleFrame: CGRect, _ currentSize: CGSize) -> CGRect) {
@@ -120,8 +149,10 @@ final class WindowManager: ObservableObject {
 
     // MARK: Custom sizes
 
-    func addCustomSize(name: String, widthFraction: Double, heightFraction: Double) {
-        let size = CustomSize(name: name, widthFraction: widthFraction, heightFraction: heightFraction)
+    func addCustomSize(name: String, widthFraction: Double, heightFraction: Double,
+                       xFraction: Double, yFraction: Double) {
+        let size = CustomSize(name: name, widthFraction: widthFraction, heightFraction: heightFraction,
+                              xFraction: xFraction, yFraction: yFraction)
         customSizes.append(size)
         prefs.saveCustomSizes(customSizes)
         registerCustomHandler(for: size.id)
@@ -151,6 +182,7 @@ final class WindowManager: ObservableObject {
             KeyboardShortcuts.onKeyDown(for: name) { [weak self] in self?.perform(action) }
         }
         KeyboardShortcuts.onKeyDown(for: .windowCenter) { [weak self] in self?.center() }
+        KeyboardShortcuts.onKeyDown(for: .windowCenterFit) { [weak self] in self?.centerFit() }
     }
 
     /// Registers exactly one handler per custom size id. The handler looks the size up live, so
@@ -160,6 +192,29 @@ final class WindowManager: ObservableObject {
         KeyboardShortcuts.onKeyDown(for: Self.shortcutName(for: id)) { [weak self] in
             guard let self, let size = self.customSizes.first(where: { $0.id == id }) else { return }
             self.apply(size)
+        }
+    }
+
+    // MARK: Shortcut conflicts
+
+    /// All shortcut names this app manages (built-in actions + one per custom size).
+    var allShortcutNames: [KeyboardShortcuts.Name] {
+        let builtins: [KeyboardShortcuts.Name] = [
+            .windowLeftHalf, .windowRightHalf, .windowTopHalf,
+            .windowBottomHalf, .windowMaximize, .windowCenter, .windowCenterFit,
+        ]
+        return builtins + customSizes.map { Self.shortcutName(for: $0.id) }
+    }
+
+    /// When `name` is assigned a shortcut, clear that same combo from any of our other actions so
+    /// each shortcut maps to exactly one action (most recently assigned wins). The cleared
+    /// recorders update themselves via KeyboardShortcuts' change notification.
+    func resolveShortcutConflict(preferring name: KeyboardShortcuts.Name) {
+        guard let shortcut = KeyboardShortcuts.getShortcut(for: name) else { return }
+        for other in allShortcutNames where other != name {
+            if KeyboardShortcuts.getShortcut(for: other) == shortcut {
+                KeyboardShortcuts.setShortcut(nil, for: other)
+            }
         }
     }
 
