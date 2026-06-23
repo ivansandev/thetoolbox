@@ -1,5 +1,7 @@
 # thetoolbox
 
+[![Build](https://github.com/ivansandev/thetoolbox/actions/workflows/build.yml/badge.svg)](https://github.com/ivansandev/thetoolbox/actions/workflows/build.yml)
+
 A background (menu-bar-only) macOS app bundling quality-of-life utilities.
 Apple Silicon, macOS 14+.
 
@@ -46,6 +48,15 @@ Apple Silicon, macOS 14+.
 - **Desktop:** the menu's **Desktop** section toggles desktop icons and widgets (each briefly
   relaunches Finder / WindowManager to apply).
 
+## Requirements
+
+- **Apple Silicon** Mac (M-series) — the DDC path uses Apple-Silicon-only APIs.
+- **macOS 14 (Sonoma)** or later.
+- **Xcode 16+** and [XcodeGen](https://github.com/yonaskolb/XcodeGen) to build.
+
+There is no notarized download — **build from source**. A copied build is unsigned, so Gatekeeper
+may refuse to open it; run it from Xcode, or right-click the `.app` → Open.
+
 ## Build & run
 
 Requires Xcode 16+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen):
@@ -66,6 +77,10 @@ xcodebuild -scheme thetoolbox -configuration Debug build
 - **DDC monitor control** needs no special permission on Apple Silicon.
 - **Window management** needs **Accessibility** permission
   (System Settings → Privacy & Security → Accessibility). The app prompts on first use.
+- **Brightness-key routing** (to the display under the pointer) uses a session event tap, which
+  also requires Accessibility.
+- **Private APIs:** thetoolbox calls private frameworks (`IOAVService`, `DisplayServices`) and
+  installs a `CGEventTap`. It is **not App Store eligible** and is intended for personal/local use.
 - **Signing caveat:** the Accessibility grant is tied to the app's code signature. The default
   build uses ad-hoc signing (`CODE_SIGN_IDENTITY = -`), whose signature changes every build, so
   macOS forgets the grant on each rebuild. For day-to-day use of the window feature, set a stable
@@ -79,3 +94,14 @@ xcodebuild -scheme thetoolbox -configuration Debug build
   `Windows`, `Settings`, `Shortcuts`, `Persistence`).
 - Dependencies: [`AppleSiliconDDC`](https://github.com/waydabber/AppleSiliconDDC) (DDC over I2C),
   [`KeyboardShortcuts`](https://github.com/sindresorhus/KeyboardShortcuts) (global shortcuts).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) — in short: edit `project.yml` (not the generated
+`.xcodeproj`), run `xcodegen generate`, and build.
+
+## License
+
+[MIT](LICENSE) © 2026 Ivan Sandev. Third-party components and their licenses are listed in
+[THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md) — the vendored AppleSiliconDDC is MIT © Istvan T.,
+and KeyboardShortcuts is MIT © Sindre Sorhus.
