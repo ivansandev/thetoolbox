@@ -14,9 +14,11 @@ Apple Silicon, macOS 14+.
 - **Window management** — move/resize the frontmost window via global keyboard shortcuts,
   including user-defined **custom sizes and positions** (e.g. "top-right 40% × 50%"), ideal for
   4K screens. Each shortcut is unique — reassigning a combo moves it off whatever had it.
-  Sensible defaults (⌃⌥ + arrows / return, ⌃⌥C center, ⌃⌥⌘↵ center-and-fit) are
-  seeded on first launch and are fully editable. **Center** fits the window to the screen —
-  almost-maximized on small/normal displays, a comfortable centered size on large/high-res ones.
+  Sensible defaults (⌃⌥ + arrows / return, ⌃⌥C center, ⌃⌥⌘↵ center-and-fit, ⌃⌥⌘ + ←/→ to
+  push the window to the next/previous display) are seeded on first launch and are fully editable.
+  **Center** fits the window to the screen — almost-maximized on small/normal displays, a
+  comfortable centered size on large/high-res ones. **Move to display** keeps the window's
+  position and size relative to the new screen.
 - **Brightness sync** — make an external monitor follow the built-in display's brightness via a
   configurable linear mapping (its level at built-in 0% and at built-in 100%).
 - **Power (Caffeine)** — keep the Mac awake (prevent idle system sleep) and turn the display off
@@ -36,7 +38,8 @@ Apple Silicon, macOS 14+.
   external monitor and set the mapping endpoints; its brightness then tracks the built-in (and
   its menu slider shows a link icon and is disabled).
 - **Window management:** ⌃⌥ + arrows / return snap halves & maximize, ⌃⌥C centers, ⌃⌥⌘↵
-  centers-and-fits to the screen — all editable, plus add custom sizes & positions, in
+  centers-and-fits to the screen, ⌃⌥⌘ + ←/→ moves it to the next/previous display — all editable,
+  plus add custom sizes & positions, in
   **Settings → Windows**. The menu also has Left/Right/Center/Maximize buttons. The first window
   action triggers the Accessibility prompt — grant it once. DDC monitor control needs no
   permission.

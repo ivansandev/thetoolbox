@@ -11,4 +11,6 @@ extension KeyboardShortcuts.Name {
     static let windowMaximize = Self("windowMaximize")
     static let windowCenter = Self("windowCenter")
     static let windowCenterFit = Self("windowCenterFit")
+    static let windowDisplayLeft = Self("windowDisplayLeft")
+    static let windowDisplayRight = Self("windowDisplayRight")
 }

@@ -29,6 +29,8 @@ struct WindowSettingsView: View {
                 shortcutRow("Maximize", .windowMaximize)
                 shortcutRow("Center (keep size)", .windowCenter)
                 shortcutRow("Center", .windowCenterFit)
+                shortcutRow("Move to Left Display", .windowDisplayLeft)
+                shortcutRow("Move to Right Display", .windowDisplayRight)
             }
 
             Section("Custom Sizes") {

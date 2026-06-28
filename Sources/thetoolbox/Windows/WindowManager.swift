@@ -4,6 +4,9 @@ import KeyboardShortcuts
 
 /// Moves and resizes the focused window of the frontmost app via the Accessibility API, and
 /// owns the user's custom sizes plus all global-shortcut registrations.
+/// Direction to push a window across displays (ordered left-to-right by screen origin).
+enum ScreenDirection { case left, right }
+
 final class WindowManager: ObservableObject {
     @Published private(set) var customSizes: [CustomSize]
 
@@ -24,9 +27,9 @@ final class WindowManager: ObservableObject {
     /// a "Center 60% × 80%" custom size. Never clobbers a shortcut the user already set, and
     /// won't duplicate the custom size.
     private func seedDefaultsIfNeeded() {
-        // Bumped to v2 to seed the new "Center (fit)" default on existing installs too. The
-        // per-name nil check below means no shortcut the user already set is touched.
-        let flag = "didSeedWindowDefaults.v2"
+        // Bumped to v3 to seed the new "Move to Left/Right Display" defaults on existing installs
+        // too. The per-name nil check below means no shortcut the user already set is touched.
+        let flag = "didSeedWindowDefaults.v3"
         guard !UserDefaults.standard.bool(forKey: flag) else { return }
         UserDefaults.standard.set(true, forKey: flag)
 
@@ -39,6 +42,8 @@ final class WindowManager: ObservableObject {
             (.windowMaximize, .init(.return, modifiers: controlOption)),
             (.windowCenter, .init(.c, modifiers: controlOption)),
             (.windowCenterFit, .init(.return, modifiers: [.control, .option, .command])),
+            (.windowDisplayLeft, .init(.leftArrow, modifiers: [.control, .option, .command])),
+            (.windowDisplayRight, .init(.rightArrow, modifiers: [.control, .option, .command])),
         ]
         for (name, shortcut) in builtinDefaults where KeyboardShortcuts.getShortcut(for: name) == nil {
             KeyboardShortcuts.setShortcut(shortcut, for: name)
@@ -126,25 +131,57 @@ final class WindowManager: ObservableObject {
     /// Resolves the focused window, figures out which screen it is on, and applies the target
     /// rect (computed in AppKit coordinates from that screen's visible frame).
     private func applyFrame(_ target: (_ visibleFrame: CGRect, _ currentSize: CGSize) -> CGRect) {
+        guard let ctx = focusedWindow() else { return }
+        let targetAppKit = target(ctx.screen.visibleFrame, ctx.appKitRect.size)
+        Self.setFrame(ScreenGeometry.flipY(targetAppKit), for: ctx.window)
+    }
+
+    /// Moves the focused window to the adjacent display (wrapping around), keeping its position and
+    /// size *relative* to the visible frame — so e.g. a left-half window stays a left-half window
+    /// even if the two monitors differ in resolution. No-op with a single display.
+    func moveToAdjacentDisplay(_ direction: ScreenDirection) {
+        guard let ctx = focusedWindow() else { return }
+        let screens = NSScreen.screens.sorted { $0.frame.minX < $1.frame.minX }
+        guard screens.count > 1,
+              let current = screens.firstIndex(of: ctx.screen) else { return }
+
+        let n = screens.count
+        let targetIndex = direction == .left ? (current - 1 + n) % n : (current + 1) % n
+        let from = ctx.screen.visibleFrame
+        let to = screens[targetIndex].visibleFrame
+
+        // Express the window as fractions of the source visible frame, then re-apply on the target.
+        let fracX = (ctx.appKitRect.minX - from.minX) / from.width
+        let fracY = (ctx.appKitRect.minY - from.minY) / from.height
+        let width = min(ctx.appKitRect.width / from.width, 1) * to.width
+        let height = min(ctx.appKitRect.height / from.height, 1) * to.height
+        // Clamp the origin so the window stays fully on the target screen.
+        let x = min(max(to.minX + fracX * to.width, to.minX), to.maxX - width)
+        let y = min(max(to.minY + fracY * to.height, to.minY), to.maxY - height)
+
+        Self.setFrame(ScreenGeometry.flipY(CGRect(x: x, y: y, width: width, height: height)),
+                      for: ctx.window)
+    }
+
+    /// Shared resolution of the frontmost app's focused AX window: handles the Accessibility gate,
+    /// reads the window's frame in AppKit coordinates, and identifies the screen it is on.
+    private func focusedWindow() -> (window: AXUIElement, appKitRect: CGRect, screen: NSScreen)? {
         guard AccessibilityPermission.isGranted else {
             AccessibilityPermission.prompt()
-            return
+            return nil
         }
-        guard let app = targetApp() else { return }
+        guard let app = targetApp() else { return nil }
         let axApp = AXUIElementCreateApplication(app.processIdentifier)
 
         var windowRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &windowRef) == .success,
-              let windowRef else { return }
+              let windowRef else { return nil }
         let window = windowRef as! AXUIElement
 
-        guard let currentAX = Self.frame(of: window) else { return }
-        let currentAppKit = ScreenGeometry.flipY(currentAX)
-        let screen = ScreenGeometry.screen(forAppKitRect: currentAppKit) ?? NSScreen.main
-        guard let visibleFrame = screen?.visibleFrame else { return }
-
-        let targetAppKit = target(visibleFrame, currentAppKit.size)
-        Self.setFrame(ScreenGeometry.flipY(targetAppKit), for: window)
+        guard let currentAX = Self.frame(of: window) else { return nil }
+        let appKitRect = ScreenGeometry.flipY(currentAX)
+        guard let screen = ScreenGeometry.screen(forAppKitRect: appKitRect) ?? NSScreen.main else { return nil }
+        return (window, appKitRect, screen)
     }
 
     // MARK: Custom sizes
@@ -183,6 +220,8 @@ final class WindowManager: ObservableObject {
         }
         KeyboardShortcuts.onKeyDown(for: .windowCenter) { [weak self] in self?.center() }
         KeyboardShortcuts.onKeyDown(for: .windowCenterFit) { [weak self] in self?.centerFit() }
+        KeyboardShortcuts.onKeyDown(for: .windowDisplayLeft) { [weak self] in self?.moveToAdjacentDisplay(.left) }
+        KeyboardShortcuts.onKeyDown(for: .windowDisplayRight) { [weak self] in self?.moveToAdjacentDisplay(.right) }
     }
 
     /// Registers exactly one handler per custom size id. The handler looks the size up live, so
@@ -202,6 +241,7 @@ final class WindowManager: ObservableObject {
         let builtins: [KeyboardShortcuts.Name] = [
             .windowLeftHalf, .windowRightHalf, .windowTopHalf,
             .windowBottomHalf, .windowMaximize, .windowCenter, .windowCenterFit,
+            .windowDisplayLeft, .windowDisplayRight,
         ]
         return builtins + customSizes.map { Self.shortcutName(for: $0.id) }
     }
