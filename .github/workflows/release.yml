@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Build (Release)
+        run: |
+          xcodegen generate
+          xcodebuild \
+            -project thetoolbox.xcodeproj \
+            -scheme thetoolbox \
+            -configuration Release \
+            -derivedDataPath build \
+            build
+
+      - name: Zip app
+        run: ditto -c -k --keepParent "build/Build/Products/Release/thetoolbox.app" thetoolbox.zip
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "${{ github.ref_name }}" thetoolbox.zip --generate-notes

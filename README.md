@@ -57,6 +57,15 @@ Apple Silicon, macOS 14+.
 There is no notarized download — **build from source**. A copied build is unsigned, so Gatekeeper
 may refuse to open it; run it from Xcode, or right-click the `.app` → Open.
 
+## Install a release
+
+Download `thetoolbox.zip` from [Releases](https://github.com/ivansandev/thetoolbox/releases),
+unzip, and drag **thetoolbox.app** to `/Applications`. It's ad-hoc signed (not notarized), so on
+first launch **right-click → Open** (or run `xattr -dr com.apple.quarantine thetoolbox.app`).
+
+Maintainers cut a release by pushing a tag: `git tag v0.1.0 && git push origin v0.1.0` — CI builds
+the app and attaches the zip.
+
 ## Build & run
 
 Requires Xcode 16+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen):
