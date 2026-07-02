@@ -33,8 +33,10 @@ enum KeepAwakeStop: Int, CaseIterable, Identifiable {
     }
 }
 
-/// Caffeine-style power control: keep the Mac awake (prevent idle *system* sleep, which still
-/// allows the display to sleep) for a chosen duration, and turn the display off on demand.
+/// Caffeine-style power control: keep the Mac awake (prevent idle *display* sleep, which keeps the
+/// screen lit and therefore the system awake too) for a chosen duration, and turn the display off
+/// on demand. Preventing display sleep is what the "Caffeine" app does — using the weaker
+/// system-only assertion let the screen go dark on the idle timer, which reads as "not working".
 final class PowerManager: ObservableObject {
     /// Current slider position. Setting it to anything but `.off` starts keep-awake.
     @Published private(set) var stop: KeepAwakeStop = .off
@@ -91,7 +93,7 @@ final class PowerManager: ObservableObject {
         guard assertionID == 0 else { return }
         var id: IOPMAssertionID = 0
         let result = IOPMAssertionCreateWithName(
-            kIOPMAssertPreventUserIdleSystemSleep as CFString,
+            kIOPMAssertPreventUserIdleDisplaySleep as CFString,
             IOPMAssertionLevel(kIOPMAssertionLevelOn),
             "thetoolbox keep awake" as CFString,
             &id
