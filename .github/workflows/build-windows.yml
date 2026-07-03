@@ -1,0 +1,31 @@
+name: Build (Windows)
+
+on:
+  pull_request:
+    paths:
+      - 'platform/windows/**'
+      - 'scripts/build-windows.ps1'
+      - '.github/workflows/build-windows.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build Windows port
+        shell: pwsh
+        run: ./scripts/build-windows.ps1 -Configuration Release
+
+      - name: Verify tray host exists
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Recurse -Filter thetoolbox.exe platform/windows/bin/Release
+          if (-not $exe) { throw "thetoolbox.exe not found — Windows support may be a lie" }
+          Write-Host "Found $($exe.FullName) — Windows support is real (probably)"
