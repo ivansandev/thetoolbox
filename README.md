@@ -5,6 +5,9 @@
 A background (menu-bar-only) macOS app bundling quality-of-life utilities.
 Apple Silicon, macOS 14+.
 
+<img width="339" height="508" alt="image" src="https://github.com/user-attachments/assets/edc50497-56b0-47e6-9411-2d3a8cee57ca" />
+
+
 ## Features
 
 - **Monitor control** — brightness / contrast / volume for external monitors over DDC/CI,
