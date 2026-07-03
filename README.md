@@ -10,6 +10,12 @@ Apple Silicon, macOS 14+.
 
 ## Features
 
+- **System monitors** — CPU, memory, and storage utilization as circular gauges at the top of the
+  menu, colored by load (green / amber / red). Hover for the exact reading; click one to expand a
+  detail card — CPU shows user/system split, load average, cores, and top processes; memory shows
+  the App / Wired / Compressed breakdown, pressure, swap, and top processes; storage shows the boot
+  volume's used / free. All read from native APIs (no dependencies); polling runs only while the
+  menu is open. Toggle the row in **Settings → General**.
 - **Monitor control** — brightness / contrast / volume for external monitors over DDC/CI,
   plus built-in display brightness. Each display+control supports a **max cap**: the menu slider
   shows the panel's real %, the thumb stops at the cap, and the over-cap range is greyed out

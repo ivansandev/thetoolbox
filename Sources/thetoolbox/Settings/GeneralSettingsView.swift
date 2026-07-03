@@ -4,10 +4,13 @@ import ServiceManagement
 struct GeneralSettingsView: View {
     @EnvironmentObject private var displayManager: DisplayManager
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @AppStorage("showSystemMonitors.v1") private var showMonitors = true
 
     var body: some View {
         Form {
             Toggle("Launch thetoolbox at login", isOn: $launchAtLogin)
+
+            Toggle("Show system monitors (CPU · memory · storage)", isOn: $showMonitors)
                 .onChange(of: launchAtLogin) { _, newValue in
                     do {
                         if newValue {

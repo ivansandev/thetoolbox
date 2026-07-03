@@ -1,0 +1,260 @@
+import Foundation
+
+/// Coarse memory-pressure buckets, mirroring Activity Monitor's green / yellow / red.
+enum MemPressure { case normal, warning, critical }
+
+/// One entry in a "top consumers" list (already formatted for display).
+struct ProcInfo: Identifiable {
+    let id = UUID()
+    let name: String
+    let value: String
+}
+
+/// Live CPU / memory / storage readings for the menu's monitor row. Everything is read from
+/// native Darwin APIs (`host_statistics`, `getloadavg`, `sysctl`, `URL.resourceValues`) plus one
+/// `ps` invocation for the top-consumer lists — no third-party dependencies.
+///
+/// Sampling only runs while the menu is open: `start()` on appear, `stop()` on disappear. CPU% is
+/// a delta between successive tick snapshots, so the previous snapshot is kept across stop/start
+/// (a reopen then reflects the average over the gap rather than showing a blank first tick).
+final class SystemMonitor: ObservableObject {
+    // CPU
+    @Published private(set) var cpuUsage: Double = 0        // 0…1, busy fraction
+    @Published private(set) var cpuUser: Double = 0         // 0…1 of total
+    @Published private(set) var cpuSystem: Double = 0       // 0…1 of total
+    @Published private(set) var loadAverages: [Double] = [0, 0, 0]
+    @Published private(set) var coreSummary: String = ""
+
+    // Memory
+    @Published private(set) var memUsage: Double = 0        // 0…1
+    @Published private(set) var memUsed: UInt64 = 0
+    @Published private(set) var memTotal: UInt64 = ProcessInfo.processInfo.physicalMemory
+    @Published private(set) var memApp: UInt64 = 0
+    @Published private(set) var memWired: UInt64 = 0
+    @Published private(set) var memCompressed: UInt64 = 0
+    @Published private(set) var swapUsed: UInt64 = 0
+    @Published private(set) var pressure: MemPressure = .normal
+
+    // Storage (boot volume)
+    @Published private(set) var diskUsage: Double = 0       // 0…1
+    @Published private(set) var diskUsed: UInt64 = 0
+    @Published private(set) var diskTotal: UInt64 = 0
+    @Published private(set) var diskName: String = "Macintosh HD"
+
+    // Top consumers
+    @Published private(set) var topCPU: [ProcInfo] = []
+    @Published private(set) var topMemory: [ProcInfo] = []
+
+    private var timer: Timer?
+    private let queue = DispatchQueue(label: "thetoolbox.systemmonitor")
+    private var previousTicks: (user: UInt64, system: UInt64, idle: UInt64, nice: UInt64)?
+
+    init() {
+        coreSummary = Self.coreSummary()
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["THETOOLBOX_MONITOR_TEST"] == "1" {
+            queue.sync { self.sample() }   // prime baseline
+            Thread.sleep(forTimeInterval: 1.0)
+            queue.sync { self.sample() }
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.3))   // let the async publish flush
+            NSLog("thetoolbox monitor test: cpu=\(Int(cpuUsage*100))%% mem=\(Int(memUsage*100))%% (\(memUsed)/\(memTotal)) disk=\(Int(diskUsage*100))%% topCPU=\(topCPU.map{ "\($0.name) \($0.value)" }) topMem=\(topMemory.map{ "\($0.name) \($0.value)" })")
+            assert((0...1).contains(cpuUsage) && (0...1).contains(memUsage) && (0...1).contains(diskUsage))
+        }
+        #endif
+    }
+
+    /// Begins polling every 2s (idempotent). CPU needs the delta, so it firms up on the 2nd tick;
+    /// memory / disk / processes are absolute and correct on the first.
+    func start() {
+        guard timer == nil else { return }
+        refresh()
+        let t = Timer(timeInterval: 2, repeats: true) { [weak self] _ in self?.refresh() }
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
+    }
+
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    deinit { timer?.invalidate() }
+
+    private func refresh() {
+        queue.async { self.sample() }
+    }
+
+    /// Reads every metric on the serial queue, then publishes the results on the main actor.
+    private func sample() {
+        let cpu = readCPU()
+        let mem = readMemory()
+        let disk = readDisk()
+        let procs = topProcesses()
+
+        DispatchQueue.main.async {
+            if let cpu {
+                self.cpuUsage = cpu.busy; self.cpuUser = cpu.user; self.cpuSystem = cpu.system
+            }
+            self.loadAverages = Self.loadAverage()
+            if let mem {
+                self.memUsage = mem.usage; self.memUsed = mem.used; self.memTotal = mem.total
+                self.memApp = mem.app; self.memWired = mem.wired; self.memCompressed = mem.compressed
+                self.swapUsed = mem.swap; self.pressure = mem.pressure
+            }
+            if let disk {
+                self.diskUsage = disk.usage; self.diskUsed = disk.used
+                self.diskTotal = disk.total; self.diskName = disk.name
+            }
+            self.topCPU = procs.cpu
+            self.topMemory = procs.mem
+        }
+    }
+
+    // MARK: CPU
+
+    private func readCPU() -> (busy: Double, user: Double, system: Double)? {
+        var info = host_cpu_load_info()
+        var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, $0, &count)
+            }
+        }
+        guard result == KERN_SUCCESS else { return nil }
+
+        let user = UInt64(info.cpu_ticks.0), system = UInt64(info.cpu_ticks.1)
+        let idle = UInt64(info.cpu_ticks.2), nice = UInt64(info.cpu_ticks.3)
+        defer { previousTicks = (user, system, idle, nice) }
+        guard let prev = previousTicks else { return (0, 0, 0) }
+
+        let dUser = user &- prev.user, dSystem = system &- prev.system
+        let dIdle = idle &- prev.idle, dNice = nice &- prev.nice
+        let total = dUser + dSystem + dIdle + dNice
+        guard total > 0 else { return (cpuUsage, cpuUser, cpuSystem) }
+        let busy = Double(dUser + dSystem + dNice) / Double(total)
+        return (busy, Double(dUser + dNice) / Double(total), Double(dSystem) / Double(total))
+    }
+
+    private static func loadAverage() -> [Double] {
+        var loads = [Double](repeating: 0, count: 3)
+        getloadavg(&loads, 3)
+        return loads
+    }
+
+    private static func coreSummary() -> String {
+        let total = ProcessInfo.processInfo.activeProcessorCount
+        if let p = sysctlInt("hw.perflevel0.logicalcpu"), let e = sysctlInt("hw.perflevel1.logicalcpu"), e > 0 {
+            return "\(total) (\(p)P + \(e)E)"
+        }
+        return "\(total)"
+    }
+
+    // MARK: Memory
+
+    private func readMemory() -> (usage: Double, used: UInt64, total: UInt64, app: UInt64,
+                                  wired: UInt64, compressed: UInt64, swap: UInt64, pressure: MemPressure)? {
+        var vm = vm_statistics64()
+        var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &vm) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
+            }
+        }
+        guard result == KERN_SUCCESS else { return nil }
+
+        var page: vm_size_t = 0
+        host_page_size(mach_host_self(), &page)
+        let ps = UInt64(page)
+        let total = ProcessInfo.processInfo.physicalMemory
+        let wired = UInt64(vm.wire_count) * ps
+        let compressed = UInt64(vm.compressor_page_count) * ps
+        // App memory ≈ internal pages that aren't purgeable (matches Activity Monitor closely).
+        let app = UInt64(max(0, Int64(vm.internal_page_count) - Int64(vm.purgeable_count))) * ps
+        let used = app + wired + compressed
+        let usage = total > 0 ? min(1, Double(used) / Double(total)) : 0
+
+        return (usage, used, total, app, wired, compressed, Self.swapUsed(), Self.pressure(usedFraction: usage))
+    }
+
+    private static func swapUsed() -> UInt64 {
+        var usage = xsw_usage()
+        var size = MemoryLayout<xsw_usage>.stride
+        guard sysctlbyname("vm.swapusage", &usage, &size, nil, 0) == 0 else { return 0 }
+        return usage.xsu_used
+    }
+
+    /// Prefers the kernel's real pressure level; falls back to used-fraction thresholds if the
+    /// sysctl is unavailable. ponytail: threshold fallback is a proxy, not true pressure.
+    private static func pressure(usedFraction: Double) -> MemPressure {
+        if let level = sysctlInt("kern.memorystatus_vm_pressure_level") {
+            switch level { case 4: return .critical; case 2: return .warning; default: return .normal }
+        }
+        return usedFraction > 0.90 ? .critical : usedFraction > 0.70 ? .warning : .normal
+    }
+
+    // MARK: Storage
+
+    private func readDisk() -> (usage: Double, used: UInt64, total: UInt64, name: String)? {
+        let url = URL(fileURLWithPath: "/")
+        // Plain available capacity (real free space), NOT ...ForImportantUsage — the latter counts
+        // purgeable space as free and under-reports usage vs. df / Finder's Storage view.
+        guard let values = try? url.resourceValues(forKeys: [
+            .volumeTotalCapacityKey, .volumeAvailableCapacityKey, .volumeNameKey
+        ]), let total = values.volumeTotalCapacity else { return nil }
+
+        let free = UInt64(values.volumeAvailableCapacity ?? 0)
+        let totalU = UInt64(total)
+        let used = totalU > free ? totalU - free : 0
+        let usage = totalU > 0 ? Double(used) / Double(totalU) : 0
+        return (usage, used, totalU, values.volumeName ?? "Macintosh HD")
+    }
+
+    // MARK: Top processes (single `ps`, parsed twice)
+
+    private func topProcesses() -> (cpu: [ProcInfo], mem: [ProcInfo]) {
+        guard let output = Self.runPS() else { return ([], []) }
+        struct Sample { let name: String; let cpu: Double; let rss: UInt64 }
+        var samples: [Sample] = []
+        for line in output.split(separator: "\n") {
+            let tokens = line.trimmingCharacters(in: .whitespaces).split(whereSeparator: { $0 == " " })
+            guard tokens.count >= 3, let cpu = Double(tokens[0]), let rssKB = Double(tokens[1]) else { continue }
+            samples.append(Sample(name: tokens[2...].joined(separator: " "),
+                                  cpu: cpu, rss: UInt64(rssKB) * 1024))
+        }
+        let cpu = samples.sorted { $0.cpu > $1.cpu }.prefix(3)
+            .map { ProcInfo(name: $0.name, value: "\(Int($0.cpu.rounded()))%") }
+        let mem = samples.sorted { $0.rss > $1.rss }.prefix(3)
+            .map { ProcInfo(name: $0.name, value: Format.bytes($0.rss)) }
+        return (Array(cpu), Array(mem))
+    }
+
+    private static func runPS() -> String? {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/ps")
+        task.arguments = ["-A", "-c", "-o", "pcpu=", "-o", "rss=", "-o", "comm="]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+        do { try task.run() } catch { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        task.waitUntilExit()
+        return String(data: data, encoding: .utf8)
+    }
+}
+
+/// Reads a scalar integer sysctl by name; nil if the key is absent (e.g. perflevels on Intel).
+private func sysctlInt(_ name: String) -> Int? {
+    var value: Int = 0
+    var size = MemoryLayout<Int>.size
+    return sysctlbyname(name, &value, &size, nil, 0) == 0 ? value : nil
+}
+
+/// Byte formatting shared by the monitor cards.
+enum Format {
+    static func bytes(_ bytes: UInt64, style: ByteCountFormatter.CountStyle = .memory) -> String {
+        let f = ByteCountFormatter()
+        f.countStyle = style
+        f.allowedUnits = bytes < 1_000_000_000 ? [.useMB] : [.useGB]
+        return f.string(fromByteCount: Int64(bytes))
+    }
+}

@@ -3,11 +3,17 @@ import SwiftUI
 struct MenuBarView: View {
     @EnvironmentObject private var displayManager: DisplayManager
     @Environment(\.openSettings) private var openSettings
+    @AppStorage("showSystemMonitors.v1") private var showMonitors = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("thetoolbox")
                 .font(.headline)
+
+            if showMonitors {
+                MonitorSection()
+                Divider()
+            }
 
             if displayManager.displays.isEmpty {
                 Text("No controllable displays detected.")
