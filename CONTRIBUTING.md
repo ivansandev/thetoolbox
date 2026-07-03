@@ -1,7 +1,8 @@
 # Contributing to thetoolbox
 
 Thanks for your interest! thetoolbox is a personal, non-commercial macOS menu-bar app, and
-contributions are welcome.
+contributions are welcome. By participating you agree to abide by the
+[Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Requirements
 
