@@ -1,12 +1,14 @@
 import SwiftUI
 
+/// Which monitor's detail card is expanded, if any. Owned by `MenuBarView` so it can switch the
+/// popover to a scrolling layout while a (potentially tall) card is open.
+enum MonitorMetric { case cpu, memory, storage }
+
 /// The three system-monitor gauges (CPU / Memory / Storage) with click-to-expand detail cards.
 /// Polling runs only while this view is on screen, i.e. while the menu is open.
 struct MonitorSection: View {
     @EnvironmentObject private var monitor: SystemMonitor
-    @State private var expanded: Metric?
-
-    enum Metric { case cpu, memory, storage }
+    @Binding var expanded: MonitorMetric?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -28,7 +30,7 @@ struct MonitorSection: View {
         .onDisappear { monitor.stop() }
     }
 
-    private func gauge(_ metric: Metric, _ symbol: String, _ value: Double, _ label: String, tip: String) -> some View {
+    private func gauge(_ metric: MonitorMetric, _ symbol: String, _ value: Double, _ label: String, tip: String) -> some View {
         Button {
             withAnimation(.easeOut(duration: 0.16)) {
                 expanded = (expanded == metric) ? nil : metric
@@ -57,7 +59,7 @@ struct MonitorSection: View {
     }
 
     @ViewBuilder
-    private func detail(for metric: Metric) -> some View {
+    private func detail(for metric: MonitorMetric) -> some View {
         switch metric {
         case .cpu: CPUDetail()
         case .memory: MemoryDetail()

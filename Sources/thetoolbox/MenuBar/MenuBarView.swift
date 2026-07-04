@@ -1,17 +1,54 @@
+import AppKit
 import SwiftUI
+
+/// Reports the expanded menu's natural height so the scroll layout can fit it, capped by the screen.
+private struct ContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
 
 struct MenuBarView: View {
     @EnvironmentObject private var displayManager: DisplayManager
     @Environment(\.openSettings) private var openSettings
     @AppStorage("showSystemMonitors.v1") private var showMonitors = true
+    @State private var expandedMonitor: MonitorMetric?
+    @State private var expandedHeight: CGFloat = 0
+
+    /// Cap for the scrolling layout so it can't run past the screen edge.
+    private var maxHeight: CGFloat { (NSScreen.main?.visibleFrame.height ?? 800) - 40 }
 
     var body: some View {
+        // The menu opens collapsed on the plain layout (which MenuBarExtra sizes reliably). Only
+        // once a — potentially tall — detail card is expanded do we wrap in a scroll view. By then
+        // the popover is already on screen, so measuring the content height here is safe (the
+        // deadlock that broke opening only happened when measuring at first appearance). We fit the
+        // popover to that measured height, capped by the screen — so it hugs the content when it
+        // fits and scrolls only when it would overflow. A *definite* height (not a ScrollView's
+        // indefinite ideal size) is what keeps the popover working.
+        if expandedMonitor == nil {
+            menuContent
+        } else {
+            ScrollView {
+                menuContent
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(key: ContentHeightKey.self, value: geo.size.height)
+                        }
+                    )
+            }
+            // Seed with the screen cap until the first measurement lands, so it never collapses.
+            .frame(height: min(expandedHeight == 0 ? maxHeight : expandedHeight, maxHeight))
+            .onPreferenceChange(ContentHeightKey.self) { expandedHeight = $0 }
+        }
+    }
+
+    private var menuContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("thetoolbox")
                 .font(.headline)
 
             if showMonitors {
-                MonitorSection()
+                MonitorSection(expanded: $expandedMonitor)
                 Divider()
             }
 
