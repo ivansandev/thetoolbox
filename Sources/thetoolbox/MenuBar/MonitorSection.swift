@@ -27,7 +27,7 @@ struct MonitorSection: View {
             }
         }
         .onAppear { monitor.start() }
-        .onDisappear { monitor.stop() }
+        .onDisappear { monitor.stop(); expanded = nil }
     }
 
     private func gauge(_ metric: MonitorMetric, _ symbol: String, _ value: Double, _ label: String, tip: String) -> some View {
