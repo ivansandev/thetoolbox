@@ -10,6 +10,14 @@ struct ProcInfo: Identifiable {
     let value: String
 }
 
+/// One fan's current speed, read from the SMC. Fanless Macs (e.g. MacBook Air) simply report zero
+/// fans.
+struct FanReading: Identifiable {
+    let id: Int
+    let name: String
+    let rpm: Int
+}
+
 /// Live CPU / memory / storage readings for the menu's monitor row. Everything is read from
 /// native Darwin APIs (`host_statistics`, `getloadavg`, `sysctl`, `URL.resourceValues`) plus one
 /// `ps` invocation for the top-consumer lists — no third-party dependencies.
@@ -45,6 +53,9 @@ final class SystemMonitor: ObservableObject {
     @Published private(set) var topCPU: [ProcInfo] = []
     @Published private(set) var topMemory: [ProcInfo] = []
 
+    // Fans (SMC; empty on fanless Macs)
+    @Published private(set) var fans: [FanReading] = []
+
     private var timer: Timer?
     private let queue = DispatchQueue(label: "thetoolbox.systemmonitor")
     private var previousTicks: (user: UInt64, system: UInt64, idle: UInt64, nice: UInt64)?
@@ -57,8 +68,9 @@ final class SystemMonitor: ObservableObject {
             Thread.sleep(forTimeInterval: 1.0)
             queue.sync { self.sample() }
             RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.3))   // let the async publish flush
-            NSLog("thetoolbox monitor test: cpu=\(Int(cpuUsage*100))%% mem=\(Int(memUsage*100))%% (\(memUsed)/\(memTotal)) disk=\(Int(diskUsage*100))%% topCPU=\(topCPU.map{ "\($0.name) \($0.value)" }) topMem=\(topMemory.map{ "\($0.name) \($0.value)" })")
+            NSLog("thetoolbox monitor test: cpu=\(Int(cpuUsage*100))%% mem=\(Int(memUsage*100))%% (\(memUsed)/\(memTotal)) disk=\(Int(diskUsage*100))%% topCPU=\(topCPU.map{ "\($0.name) \($0.value)" }) topMem=\(topMemory.map{ "\($0.name) \($0.value)" }) fans=\(fans.map { "\($0.name) \($0.rpm)rpm" })")
             assert((0...1).contains(cpuUsage) && (0...1).contains(memUsage) && (0...1).contains(diskUsage))
+            assert(fans.allSatisfy { (0...10000).contains($0.rpm) })
         }
         #endif
     }
@@ -90,6 +102,7 @@ final class SystemMonitor: ObservableObject {
         let mem = readMemory()
         let disk = readDisk()
         let procs = topProcesses()
+        let fans = Self.readFans()
 
         DispatchQueue.main.async {
             if let cpu {
@@ -107,6 +120,19 @@ final class SystemMonitor: ObservableObject {
             }
             self.topCPU = procs.cpu
             self.topMemory = procs.mem
+            self.fans = fans
+        }
+    }
+
+    // MARK: Fans
+
+    /// Reads every fan's current RPM via the SMC. Returns an empty list on fanless Macs or if the
+    /// SMC is unreachable — both are treated the same by callers (no "Fans" section shown).
+    private static func readFans() -> [FanReading] {
+        guard let count = SMC.readValue("FNum"), count > 0 else { return [] }
+        return (0..<Int(count)).compactMap { i in
+            guard let rpm = SMC.readValue("F\(i)Ac") else { return nil }
+            return FanReading(id: i, name: "Fan \(i + 1)", rpm: Int(rpm.rounded()))
         }
     }
 

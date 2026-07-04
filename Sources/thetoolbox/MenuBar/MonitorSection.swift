@@ -169,6 +169,15 @@ private struct CPUDetail: View {
             SplitBar(user: monitor.cpuUser, system: monitor.cpuSystem)
             KV(key: "Load average (1 · 5 · 15 min)", value: monitor.loadAverages.map { String(format: "%.1f", $0) }.joined(separator: " · "))
             KV(key: "Cores", value: monitor.coreSummary)
+            if !monitor.fans.isEmpty {
+                Text("Fans")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .textCase(.uppercase)
+                ForEach(monitor.fans) { fan in
+                    KV(key: fan.name, value: "\(fan.rpm) RPM")
+                }
+            }
             Divider().padding(.vertical, 1)
             TopList(title: "Top by CPU", items: monitor.topCPU)
         }

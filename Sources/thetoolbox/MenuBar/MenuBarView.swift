@@ -54,6 +54,11 @@ struct MenuBarView: View {
         }
         .padding(14)
         .frame(width: 320)
+        // MenuBarExtra(.window) only sizes the popover once, at first appearance; without this it
+        // clips (or shifts content upward) instead of resizing when content grows later, e.g.
+        // expanding a monitor's detail card. Forcing an accurate intrinsic height on every change
+        // makes the hosting window keep re-sizing to fit.
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
