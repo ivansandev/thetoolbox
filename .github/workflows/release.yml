@@ -10,11 +10,33 @@ permissions:
 jobs:
   release:
     runs-on: macos-15
+    env:
+      # Set these three repo secrets to sign releases with a stable identity so the macOS
+      # Accessibility grant survives version updates. If they're unset, the build still runs and
+      # falls back to ad-hoc signing (grant is forgotten on each update). See CLAUDE.md.
+      SIGN_CERT_B64: ${{ secrets.SIGNING_CERTIFICATE_P12_BASE64 }}
+      SIGN_CERT_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
+      SIGN_IDENTITY: ${{ secrets.SIGNING_IDENTITY }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Install XcodeGen
         run: brew install xcodegen
+
+      - name: Import signing certificate
+        if: env.SIGN_CERT_B64 != ''
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PW="$(uuidgen)"
+          security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          echo "$SIGN_CERT_B64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$SIGN_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PW" "$KEYCHAIN"
+          # Prepend our keychain to the search list so codesign can find the identity.
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | sed s/\"//g)
+          rm -f "$RUNNER_TEMP/cert.p12"
 
       - name: Build (Release)
         run: |
@@ -25,6 +47,16 @@ jobs:
             -configuration Release \
             -derivedDataPath build \
             build
+
+      - name: Re-sign with stable identity
+        if: env.SIGN_CERT_B64 != ''
+        run: |
+          APP="build/Build/Products/Release/thetoolbox.app"
+          codesign --force --sign "$SIGN_IDENTITY" \
+            --entitlements thetoolbox.entitlements --timestamp=none "$APP"
+          codesign --verify --verbose "$APP"
+          echo "Designated requirement (stable across versions signed by this cert):"
+          codesign --display --requirements - "$APP"
 
       - name: Zip app
         run: ditto -c -k --keepParent "build/Build/Products/Release/thetoolbox.app" thetoolbox.zip
