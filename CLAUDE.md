@@ -16,7 +16,7 @@ Commit changes to `main`, then push a version tag — CI builds the Release app 
 ```sh
 git tag v0.2.0 && git push origin v0.2.0
 ```
-Bump the tag (semver `vMAJOR.MINOR.PATCH`) each release. Last: v0.5.0.
+Bump the tag (semver `vMAJOR.MINOR.PATCH`) each release. Last: v0.5.1.
 
 ## Release signing (so Accessibility survives updates)
 macOS ties the Accessibility (TCC) grant to the app's **code-signing identity**, not its version.
