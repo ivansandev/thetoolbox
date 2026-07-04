@@ -61,6 +61,10 @@ struct MenuBarView: View {
 private struct WindowSection: View {
     @EnvironmentObject private var windowManager: WindowManager
 
+    /// The user's first custom size gets its own quick-action slot next to Center (replacing
+    /// Maximize); the list below skips it so it isn't shown twice.
+    private var featuredSize: CustomSize? { windowManager.customSizes.first }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Window")
@@ -70,11 +74,13 @@ private struct WindowSection: View {
             HStack(spacing: 6) {
                 actionButton("rectangle.lefthalf.inset.filled", "Left Half") { windowManager.perform(.leftHalf) }
                 actionButton("rectangle.righthalf.inset.filled", "Right Half") { windowManager.perform(.rightHalf) }
-                actionButton("rectangle.center.inset.filled", "Center") { windowManager.center() }
-                actionButton("rectangle.inset.filled", "Maximize") { windowManager.perform(.maximize) }
+                actionButton("plus", "Center") { windowManager.center() }
+                if let featuredSize {
+                    actionButton("rectangle.center.inset.filled", featuredSize.name) { windowManager.apply(featuredSize) }
+                }
             }
 
-            ForEach(windowManager.customSizes) { size in
+            ForEach(windowManager.customSizes.filter { $0.id != featuredSize?.id }) { size in
                 Button {
                     windowManager.apply(size)
                 } label: {
@@ -168,13 +174,14 @@ private struct PowerSection: View {
     }
 }
 
-/// Toggles for desktop icons and desktop widgets.
+/// Desktop toggles plus small one-off utilities.
 private struct DesktopSection: View {
     @EnvironmentObject private var desktopManager: DesktopManager
+    @EnvironmentObject private var keyboardCleaner: KeyboardCleaner
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Desktop")
+            Text("Misc")
                 .font(.subheadline)
                 .fontWeight(.medium)
 
@@ -191,6 +198,14 @@ private struct DesktopSection: View {
             ))
             .toggleStyle(.switch)
             .controlSize(.small)
+
+            Toggle("Clean the keyboard", isOn: Binding(
+                get: { keyboardCleaner.isActive },
+                set: { $0 ? keyboardCleaner.start() : keyboardCleaner.stop() }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .help("Disables the keyboard so you can wipe it. Toggle off (or the on-screen button) to re-enable.")
         }
     }
 }

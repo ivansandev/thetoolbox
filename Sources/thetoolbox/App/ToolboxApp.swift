@@ -8,6 +8,7 @@ struct ToolboxApp: App {
     @StateObject private var powerManager = PowerManager()
     @StateObject private var desktopManager = DesktopManager()
     @StateObject private var systemMonitor = SystemMonitor()
+    @StateObject private var keyboardCleaner = KeyboardCleaner()
 
     var body: some Scene {
         // .window style is required so the dropdown can host SwiftUI controls
@@ -19,6 +20,7 @@ struct ToolboxApp: App {
                 .environmentObject(powerManager)
                 .environmentObject(desktopManager)
                 .environmentObject(systemMonitor)
+                .environmentObject(keyboardCleaner)
         }
         .menuBarExtraStyle(.window)
 
