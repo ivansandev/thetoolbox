@@ -1,11 +1,40 @@
+import AppKit
 import SwiftUI
+
+/// Reports the menu content's natural height so the popover can size itself to it, capped by
+/// `MenuBarView.maxHeight`.
+private struct ContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
 
 struct MenuBarView: View {
     @EnvironmentObject private var displayManager: DisplayManager
     @Environment(\.openSettings) private var openSettings
     @AppStorage("showSystemMonitors.v1") private var showMonitors = true
+    @State private var contentHeight: CGFloat = 0
+
+    /// MenuBarExtra(.window) can't grow the popover past the screen edge; expanding a detail card
+    /// (or having several displays) can make the content taller than that. Past this height we
+    /// scroll instead of silently clipping.
+    private var maxHeight: CGFloat {
+        (NSScreen.main?.visibleFrame.height ?? 800) - 48
+    }
 
     var body: some View {
+        ScrollView {
+            menuContent
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.preference(key: ContentHeightKey.self, value: geo.size.height)
+                    }
+                )
+        }
+        .frame(width: 320, height: min(contentHeight, maxHeight))
+        .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
+    }
+
+    private var menuContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("thetoolbox")
                 .font(.headline)
@@ -54,11 +83,6 @@ struct MenuBarView: View {
         }
         .padding(14)
         .frame(width: 320)
-        // MenuBarExtra(.window) only sizes the popover once, at first appearance; without this it
-        // clips (or shifts content upward) instead of resizing when content grows later, e.g.
-        // expanding a monitor's detail card. Forcing an accurate intrinsic height on every change
-        // makes the hosting window keep re-sizing to fit.
-        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
