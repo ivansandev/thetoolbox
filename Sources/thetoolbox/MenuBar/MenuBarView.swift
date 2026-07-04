@@ -108,7 +108,7 @@ private struct WindowSection: View {
     }
 }
 
-/// Caffeine-style controls: keep the Mac awake for a chosen duration, and turn the display off.
+/// Caffeine-style control: keep the Mac awake for a chosen duration.
 private struct PowerSection: View {
     @EnvironmentObject private var powerManager: PowerManager
 
@@ -146,15 +146,6 @@ private struct PowerSection: View {
                         .frame(maxWidth: .infinity)
                 }
             }
-
-            Button {
-                powerManager.turnOffDisplay()
-            } label: {
-                Label("Turn Off Display", systemImage: "display")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .help("Sleeps the display now. With keep-awake on, the system stays running.")
         }
     }
 

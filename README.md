@@ -30,8 +30,8 @@ Apple Silicon, macOS 14+.
   position and size relative to the new screen.
 - **Brightness sync** — make an external monitor follow the built-in display's brightness via a
   configurable linear mapping (its level at built-in 0% and at built-in 100%).
-- **Power (Caffeine)** — keep the Mac awake (prevent idle system sleep) and turn the display off
-  on demand, so the screen can be dark while the system keeps running.
+- **Power (Caffeine)** — keep the Mac awake (prevent idle display sleep), so the screen stays lit
+  and the system keeps running.
 - **Brightness keys → display under the pointer** — the hardware brightness keys adjust
   whichever display the pointer is over (external monitors via DDC, with an on-screen overlay);
   the built-in display keeps its native behavior.
@@ -54,7 +54,7 @@ Apple Silicon, macOS 14+.
   permission.
 - **Power:** the menu's **Power** section has a keep-awake **duration slider**
   (Off · 15m · 30m · 1h · 2h · 4h · ∞) — dragging right of Off starts keep-awake and shows a live
-  "Auto-off in …" countdown; drag back to Off to stop. Plus a "Turn Off Display" button.
+  "Auto-off in …" countdown; drag back to Off to stop.
 - **Brightness keys:** with Accessibility granted, press the hardware brightness keys while the
   pointer is over an external monitor to change *that* monitor (toggle in **Settings → General**).
 - **Desktop:** the menu's **Desktop** section toggles desktop icons and widgets (each briefly

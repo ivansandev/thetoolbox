@@ -34,9 +34,9 @@ enum KeepAwakeStop: Int, CaseIterable, Identifiable {
 }
 
 /// Caffeine-style power control: keep the Mac awake (prevent idle *display* sleep, which keeps the
-/// screen lit and therefore the system awake too) for a chosen duration, and turn the display off
-/// on demand. Preventing display sleep is what the "Caffeine" app does — using the weaker
-/// system-only assertion let the screen go dark on the idle timer, which reads as "not working".
+/// screen lit and therefore the system awake too) for a chosen duration. Preventing display sleep
+/// is what the "Caffeine" app does — using the weaker system-only assertion let the screen go dark
+/// on the idle timer, which reads as "not working".
 final class PowerManager: ObservableObject {
     /// Current slider position. Setting it to anything but `.off` starts keep-awake.
     @Published private(set) var stop: KeepAwakeStop = .off
@@ -67,15 +67,6 @@ final class PowerManager: ObservableObject {
             ensureAssertion()
             scheduleAutoOff()
         }
-    }
-
-    /// Turns the display off immediately via `pmset displaysleepnow` (works on Apple Silicon and
-    /// needs no privileges). If keep-awake is on, the system stays running with the screen dark.
-    func turnOffDisplay() {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/pmset")
-        task.arguments = ["displaysleepnow"]
-        try? task.run()
     }
 
     /// Remaining time until auto-off, formatted "m:ss" (or "h:mm:ss"); empty when there's no
