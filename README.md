@@ -5,8 +5,7 @@
 A background (menu-bar-only) macOS app bundling quality-of-life utilities.
 Apple Silicon, macOS 14+.
 
-<img width="339" height="508" alt="image" src="https://github.com/user-attachments/assets/edc50497-56b0-47e6-9411-2d3a8cee57ca" />
-
+<img width="366" height="746" alt="Screenshot 2026-07-05 at 20 44 23" src="https://github.com/user-attachments/assets/19192301-f60e-4f21-a48b-cf0ac70a8bed" />
 
 ## Features
 
