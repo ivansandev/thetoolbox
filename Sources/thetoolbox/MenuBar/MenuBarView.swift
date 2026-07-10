@@ -7,15 +7,19 @@ struct MenuBarView: View {
     @AppStorage("showSystemMonitors.v1") private var showMonitors = true
     @State private var expandedMonitor: MonitorMetric?
 
-    // Fixed window size: MenuBarExtra(.window) can't reliably resize itself as content changes, so
-    // we reserve enough height for the tallest expanded state and let cards push content down into
-    // it. Capped by the screen so it never runs off small displays.
-    // ponytail: constant sized for CPU-expanded (the tallest card); bump if a taller card is added.
-    private var windowHeight: CGFloat { min(700, (NSScreen.main?.visibleFrame.height ?? 800) - 40) }
+    // Fixed window size: MenuBarExtra(.window) can't reliably resize itself as content changes (see
+    // git history — two prior attempts at reactive/measured sizing broke the popover). So the frame
+    // height is a constant, matched to the *collapsed* view's measured natural height, never
+    // recomputed from state. A ScrollView absorbs the rest: an expanded detail card that overflows
+    // scrolls into view instead of needing the window itself to resize. Capped by the screen so it
+    // never runs off small displays.
+    private var windowHeight: CGFloat { min(605, (NSScreen.main?.visibleFrame.height ?? 800) - 40) }
 
     var body: some View {
-        menuContent
-            .frame(width: 320, height: windowHeight, alignment: .top)
+        ScrollView {
+            menuContent
+        }
+        .frame(width: 320, height: windowHeight)
     }
 
     private var menuContent: some View {
