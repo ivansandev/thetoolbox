@@ -42,6 +42,7 @@ final class SystemMonitor: ObservableObject {
     @Published private(set) var memCompressed: UInt64 = 0
     @Published private(set) var swapUsed: UInt64 = 0
     @Published private(set) var pressure: MemPressure = .normal
+    @Published private(set) var pressureFraction: Double = 0 // 0…1, matches Activity Monitor's pressure graph
 
     // Storage (boot volume)
     @Published private(set) var diskUsage: Double = 0       // 0…1
@@ -112,7 +113,7 @@ final class SystemMonitor: ObservableObject {
             if let mem {
                 self.memUsage = mem.usage; self.memUsed = mem.used; self.memTotal = mem.total
                 self.memApp = mem.app; self.memWired = mem.wired; self.memCompressed = mem.compressed
-                self.swapUsed = mem.swap; self.pressure = mem.pressure
+                self.swapUsed = mem.swap; self.pressure = mem.pressure; self.pressureFraction = mem.pressureFraction
             }
             if let disk {
                 self.diskUsage = disk.usage; self.diskUsed = disk.used
@@ -178,7 +179,8 @@ final class SystemMonitor: ObservableObject {
     // MARK: Memory
 
     private func readMemory() -> (usage: Double, used: UInt64, total: UInt64, app: UInt64,
-                                  wired: UInt64, compressed: UInt64, swap: UInt64, pressure: MemPressure)? {
+                                  wired: UInt64, compressed: UInt64, swap: UInt64, pressure: MemPressure,
+                                  pressureFraction: Double)? {
         var vm = vm_statistics64()
         var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.size / MemoryLayout<integer_t>.size)
         let result = withUnsafeMutablePointer(to: &vm) {
@@ -199,7 +201,8 @@ final class SystemMonitor: ObservableObject {
         let used = app + wired + compressed
         let usage = total > 0 ? min(1, Double(used) / Double(total)) : 0
 
-        return (usage, used, total, app, wired, compressed, Self.swapUsed(), Self.pressure(usedFraction: usage))
+        return (usage, used, total, app, wired, compressed, Self.swapUsed(),
+                Self.pressure(usedFraction: usage), Self.pressureFraction(usedFraction: usage))
     }
 
     private static func swapUsed() -> UInt64 {
@@ -216,6 +219,14 @@ final class SystemMonitor: ObservableObject {
             switch level { case 4: return .critical; case 2: return .warning; default: return .normal }
         }
         return usedFraction > 0.90 ? .critical : usedFraction > 0.70 ? .warning : .normal
+    }
+
+    /// The same figure Activity Monitor's pressure graph tracks: 100% minus the kernel's
+    /// "available memory" percentage (reclaimable/free headroom), not raw bytes used — so it can
+    /// read very differently from `usedFraction`. Falls back to used-fraction if unavailable.
+    private static func pressureFraction(usedFraction: Double) -> Double {
+        guard let level = sysctlInt("kern.memorystatus_level") else { return usedFraction }
+        return max(0, min(1, Double(100 - level) / 100))
     }
 
     // MARK: Storage

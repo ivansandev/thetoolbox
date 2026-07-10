@@ -15,8 +15,8 @@ struct MonitorSection: View {
             HStack(spacing: 6) {
                 gauge(.cpu, "cpu", monitor.cpuUsage, "CPU",
                       tip: "CPU · \(pct(monitor.cpuUsage)) · load \(load1)")
-                gauge(.memory, "memorychip", monitor.memUsage, "Memory",
-                      tip: "Memory · \(Format.bytes(monitor.memUsed)) / \(Format.bytes(monitor.memTotal))")
+                gauge(.memory, "memorychip", monitor.pressureFraction, "Memory",
+                      tip: "Memory pressure · \(pressureLabel(monitor.pressure))")
                 gauge(.storage, "internaldrive", monitor.diskUsage, "Storage",
                       tip: "\(monitor.diskName) · \(Format.bytes(monitor.diskUsed, style: .file)) / \(Format.bytes(monitor.diskTotal, style: .file))")
             }
@@ -100,6 +100,14 @@ func heatColor(_ value: Double) -> Color {
 }
 
 private func pct(_ value: Double) -> String { "\(Int((value * 100).rounded()))%" }
+
+private func pressureLabel(_ pressure: MemPressure) -> String {
+    switch pressure {
+    case .normal: return "Normal"
+    case .warning: return "Warning"
+    case .critical: return "Critical"
+    }
+}
 
 // MARK: - Detail cards
 
@@ -219,7 +227,7 @@ private struct MemoryDetail: View {
     @EnvironmentObject private var monitor: SystemMonitor
     var body: some View {
         DetailCard(title: "Memory", systemImage: "memorychip",
-                   trailing: "\(Format.bytes(monitor.memUsed)) / \(Format.bytes(monitor.memTotal))") {
+                   trailing: "\(pressureLabel(monitor.pressure)) · \(pct(monitor.pressureFraction))") {
             MemoryBar(app: fraction(monitor.memApp), wired: fraction(monitor.memWired),
                       compressed: fraction(monitor.memCompressed))
             HStack(spacing: 12) {
@@ -227,7 +235,7 @@ private struct MemoryDetail: View {
                 legend(.secondary, "Wired", monitor.memWired)
                 legend(.orange, "Compressed", monitor.memCompressed)
             }
-            KV(key: "Memory pressure", value: pressureLabel)
+            KV(key: "Memory used", value: "\(Format.bytes(monitor.memUsed)) / \(Format.bytes(monitor.memTotal)) · \(pct(monitor.memUsage))")
             KV(key: "Swap used", value: Format.bytes(monitor.swapUsed))
             Divider().padding(.vertical, 1)
             TopList(title: "Top by memory", items: monitor.topMemory)
@@ -240,13 +248,6 @@ private struct MemoryDetail: View {
         HStack(spacing: 5) {
             RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 8, height: 8)
             Text("\(label) \(Format.bytes(bytes))").font(.system(size: 10)).foregroundStyle(.secondary)
-        }
-    }
-    private var pressureLabel: String {
-        switch monitor.pressure {
-        case .normal: return "Normal"
-        case .warning: return "Warning"
-        case .critical: return "Critical"
         }
     }
 }
