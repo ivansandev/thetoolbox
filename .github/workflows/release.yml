@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: macos-15
+    runs-on: macos-26
     env:
       # Set these three repo secrets to sign releases with a stable identity so the macOS
       # Accessibility grant survives version updates. If they're unset, the build still runs and

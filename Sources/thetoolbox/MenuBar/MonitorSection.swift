@@ -16,7 +16,8 @@ struct MonitorSection: View {
                 gauge(.cpu, "cpu", monitor.cpuUsage, "CPU",
                       tip: "CPU · \(pct(monitor.cpuUsage)) · load \(load1)")
                 gauge(.memory, "memorychip", monitor.pressureFraction, "Memory",
-                      tip: "Memory pressure · \(pressureLabel(monitor.pressure))")
+                      tip: "Memory pressure · \(pressureLabel(monitor.pressure))",
+                      color: pressureColor(monitor.pressure))
                 gauge(.storage, "internaldrive", monitor.diskUsage, "Storage",
                       tip: "\(monitor.diskName) · \(Format.bytes(monitor.diskUsed, style: .file)) / \(Format.bytes(monitor.diskTotal, style: .file))")
             }
@@ -30,18 +31,19 @@ struct MonitorSection: View {
         .onDisappear { monitor.stop(); expanded = nil }
     }
 
-    private func gauge(_ metric: MonitorMetric, _ symbol: String, _ value: Double, _ label: String, tip: String) -> some View {
-        Button {
+    private func gauge(_ metric: MonitorMetric, _ symbol: String, _ value: Double, _ label: String, tip: String, color: Color? = nil) -> some View {
+        let ringColor = color ?? heatColor(value)
+        return Button {
             withAnimation(.easeOut(duration: 0.16)) {
                 expanded = (expanded == metric) ? nil : metric
             }
         } label: {
             VStack(spacing: 5) {
-                RingGauge(value: value, systemImage: symbol)
+                RingGauge(value: value, systemImage: symbol, color: ringColor)
                 Text(pct(value))
                     .font(.system(size: 13, weight: .semibold))
                     .monospacedDigit()
-                    .foregroundStyle(heatColor(value))
+                    .foregroundStyle(ringColor)
                 Text(label)
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
@@ -76,6 +78,7 @@ struct MonitorSection: View {
 struct RingGauge: View {
     let value: Double
     let systemImage: String
+    var color: Color? = nil
 
     var body: some View {
         ZStack {
@@ -83,7 +86,7 @@ struct RingGauge: View {
                 .stroke(Color.primary.opacity(0.12), lineWidth: 6)
             Circle()
                 .trim(from: 0, to: max(0.001, min(value, 1)))
-                .stroke(heatColor(value), style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                .stroke(color ?? heatColor(value), style: StrokeStyle(lineWidth: 6, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .animation(.easeOut(duration: 0.5), value: value)
             Image(systemName: systemImage)
@@ -106,6 +109,16 @@ private func pressureLabel(_ pressure: MemPressure) -> String {
     case .normal: return "Normal"
     case .warning: return "Warning"
     case .critical: return "Critical"
+    }
+}
+
+/// Matches Activity Monitor's memory-pressure graph: green/yellow/red tracks the kernel's
+/// pressure level, not a threshold on the percentage itself.
+private func pressureColor(_ pressure: MemPressure) -> Color {
+    switch pressure {
+    case .normal: return .green
+    case .warning: return .yellow
+    case .critical: return .red
     }
 }
 
