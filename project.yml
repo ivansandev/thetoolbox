@@ -26,6 +26,8 @@ targets:
     platform: macOS
     sources:
       - path: Sources
+      - path: Resources/AppIcon.icns
+        buildPhase: resources
     dependencies:
       - package: KeyboardShortcuts
         product: KeyboardShortcuts
@@ -56,6 +58,7 @@ targets:
         LSUIElement: true
         CFBundleName: thetoolbox
         CFBundleDisplayName: thetoolbox
+        CFBundleIconFile: AppIcon.icns
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
