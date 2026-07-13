@@ -4,8 +4,12 @@ import SwiftUI
 struct MenuBarView: View {
     @EnvironmentObject private var displayManager: DisplayManager
     @Environment(\.openSettings) private var openSettings
-    @AppStorage("showSystemMonitors.v1") private var showMonitors = true
+    @AppStorage(PreferenceKey.statusBarCPU) private var showCPU = false
+    @AppStorage(PreferenceKey.statusBarMemory) private var showMemory = false
+    @AppStorage(PreferenceKey.statusBarStorage) private var showStorage = false
     @State private var expandedMonitor: MonitorMetric?
+
+    private var showMonitors: Bool { showCPU || showMemory || showStorage }
 
     // Fixed window size: MenuBarExtra(.window) can't reliably resize itself as content changes (see
     // git history — two prior attempts at reactive/measured sizing broke the popover). So the frame

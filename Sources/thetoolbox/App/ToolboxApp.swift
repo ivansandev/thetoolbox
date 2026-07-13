@@ -13,7 +13,7 @@ struct ToolboxApp: App {
     var body: some Scene {
         // .window style is required so the dropdown can host SwiftUI controls
         // (sliders) rather than only menu items.
-        MenuBarExtra("thetoolbox", systemImage: "wrench.and.screwdriver") {
+        MenuBarExtra {
             MenuBarView()
                 .environmentObject(displayManager)
                 .environmentObject(windowManager)
@@ -21,6 +21,8 @@ struct ToolboxApp: App {
                 .environmentObject(desktopManager)
                 .environmentObject(systemMonitor)
                 .environmentObject(keyboardCleaner)
+        } label: {
+            StatusBarLabel(monitor: systemMonitor)
         }
         .menuBarExtraStyle(.window)
 

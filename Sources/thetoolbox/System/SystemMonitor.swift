@@ -3,6 +3,16 @@ import Foundation
 /// Coarse memory-pressure buckets, mirroring Activity Monitor's green / yellow / red.
 enum MemPressure { case normal, warning, critical }
 
+/// Metrics that can keep the monitor polling while the menu is closed.
+struct StatusBarMetrics: OptionSet, Equatable {
+    let rawValue: Int
+
+    static let cpu = StatusBarMetrics(rawValue: 1 << 0)
+    static let memory = StatusBarMetrics(rawValue: 1 << 1)
+    static let storage = StatusBarMetrics(rawValue: 1 << 2)
+    static let all: StatusBarMetrics = [.cpu, .memory, .storage]
+}
+
 /// One entry in a "top consumers" list (already formatted for display).
 struct ProcInfo: Identifiable {
     let id = UUID()
@@ -22,9 +32,10 @@ struct FanReading: Identifiable {
 /// native Darwin APIs (`host_statistics`, `getloadavg`, `sysctl`, `URL.resourceValues`) plus one
 /// `ps` invocation for the top-consumer lists — no third-party dependencies.
 ///
-/// Sampling only runs while the menu is open: `start()` on appear, `stop()` on disappear. CPU% is
-/// a delta between successive tick snapshots, so the previous snapshot is kept across stop/start
-/// (a reopen then reflects the average over the gap rather than showing a blank first tick).
+/// Lightweight sampling runs while at least one status-bar metric is enabled. Opening the menu
+/// samples all metrics and additionally reads details such as top processes and fans. CPU% is a
+/// delta between successive tick snapshots, so the previous snapshot is kept across polling
+/// transitions.
 final class SystemMonitor: ObservableObject {
     // CPU
     @Published private(set) var cpuUsage: Double = 0        // 0…1, busy fraction
@@ -60,14 +71,16 @@ final class SystemMonitor: ObservableObject {
     private var timer: Timer?
     private let queue = DispatchQueue(label: "thetoolbox.systemmonitor")
     private var previousTicks: (user: UInt64, system: UInt64, idle: UInt64, nice: UInt64)?
+    private var statusBarMetrics: StatusBarMetrics = []
+    private var isMenuVisible = false
 
     init() {
         coreSummary = Self.coreSummary()
         #if DEBUG
         if ProcessInfo.processInfo.environment["THETOOLBOX_MONITOR_TEST"] == "1" {
-            queue.sync { self.sample() }   // prime baseline
+            queue.sync { self.sample(metrics: .all, includeDetails: true) }   // prime baseline
             Thread.sleep(forTimeInterval: 1.0)
-            queue.sync { self.sample() }
+            queue.sync { self.sample(metrics: .all, includeDetails: true) }
             RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.3))   // let the async publish flush
             NSLog("thetoolbox monitor test: cpu=\(Int(cpuUsage*100))%% mem=\(Int(memUsage*100))%% (\(memUsed)/\(memTotal)) disk=\(Int(diskUsage*100))%% topCPU=\(topCPU.map{ "\($0.name) \($0.value)" }) topMem=\(topMemory.map{ "\($0.name) \($0.value)" }) fans=\(fans.map { "\($0.name) \($0.rpm)rpm" })")
             assert((0...1).contains(cpuUsage) && (0...1).contains(memUsage) && (0...1).contains(diskUsage))
@@ -76,40 +89,63 @@ final class SystemMonitor: ObservableObject {
         #endif
     }
 
-    /// Begins polling every 2s (idempotent). CPU needs the delta, so it firms up on the 2nd tick;
-    /// memory / disk / processes are absolute and correct on the first.
-    func start() {
-        guard timer == nil else { return }
+    /// Updates the metrics that should remain live while the menu is closed.
+    func setStatusBarMetrics(_ metrics: StatusBarMetrics) {
+        guard statusBarMetrics != metrics else { return }
+        statusBarMetrics = metrics
+        reconcilePolling()
+    }
+
+    /// Opening the menu temporarily requests every metric plus the more expensive detail reads.
+    func startMenuSampling() {
+        guard !isMenuVisible else { return }
+        isMenuVisible = true
+        reconcilePolling()
+    }
+
+    func stopMenuSampling() {
+        guard isMenuVisible else { return }
+        isMenuVisible = false
+        reconcilePolling()
+    }
+
+    deinit { timer?.invalidate() }
+
+    private func reconcilePolling() {
+        let shouldPoll = isMenuVisible || !statusBarMetrics.isEmpty
+        guard shouldPoll else {
+            timer?.invalidate()
+            timer = nil
+            return
+        }
+
         refresh()
+        guard timer == nil else { return }
         let t = Timer(timeInterval: 2, repeats: true) { [weak self] _ in self?.refresh() }
         RunLoop.main.add(t, forMode: .common)
         timer = t
     }
 
-    func stop() {
-        timer?.invalidate()
-        timer = nil
-    }
-
-    deinit { timer?.invalidate() }
-
     private func refresh() {
-        queue.async { self.sample() }
+        let metrics = isMenuVisible ? StatusBarMetrics.all : statusBarMetrics
+        let includeDetails = isMenuVisible
+        queue.async { self.sample(metrics: metrics, includeDetails: includeDetails) }
     }
 
-    /// Reads every metric on the serial queue, then publishes the results on the main actor.
-    private func sample() {
-        let cpu = readCPU()
-        let mem = readMemory()
-        let disk = readDisk()
-        let procs = topProcesses()
-        let fans = Self.readFans()
+    /// Reads the requested metrics on the serial queue, then publishes results on the main actor.
+    private func sample(metrics: StatusBarMetrics, includeDetails: Bool) {
+        let cpu = metrics.contains(.cpu) ? readCPU() : nil
+        let loads = metrics.contains(.cpu) ? Self.loadAverage() : nil
+        let mem = metrics.contains(.memory) ? readMemory() : nil
+        let disk = metrics.contains(.storage) ? readDisk() : nil
+        let procs = includeDetails ? topProcesses() : nil
+        let fans = includeDetails ? Self.readFans() : nil
 
         DispatchQueue.main.async {
             if let cpu {
                 self.cpuUsage = cpu.busy; self.cpuUser = cpu.user; self.cpuSystem = cpu.system
             }
-            self.loadAverages = Self.loadAverage()
+            if let loads { self.loadAverages = loads }
             if let mem {
                 self.memUsage = mem.usage; self.memUsed = mem.used; self.memTotal = mem.total
                 self.memApp = mem.app; self.memWired = mem.wired; self.memCompressed = mem.compressed
@@ -119,9 +155,11 @@ final class SystemMonitor: ObservableObject {
                 self.diskUsage = disk.usage; self.diskUsed = disk.used
                 self.diskTotal = disk.total; self.diskName = disk.name
             }
-            self.topCPU = procs.cpu
-            self.topMemory = procs.mem
-            self.fans = fans
+            if let procs {
+                self.topCPU = procs.cpu
+                self.topMemory = procs.mem
+            }
+            if let fans { self.fans = fans }
         }
     }
 

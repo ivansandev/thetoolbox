@@ -9,12 +9,15 @@ Apple Silicon, macOS 14+.
 
 ## Features
 
-- **System monitors** — CPU, memory, and storage utilization as circular gauges at the top of the
-  menu, colored by load (green / amber / red). Hover for the exact reading; click one to expand a
-  detail card — CPU shows user/system split, load average, cores, and top processes; memory shows
-  the App / Wired / Compressed breakdown, pressure, swap, and top processes; storage shows the boot
-  volume's used / free. All read from native APIs (no dependencies); polling runs only while the
-  menu is open. Toggle the row in **Settings → General**.
+- **System monitors** — optionally show CPU utilization, RAM pressure, SSD usage, or any combination
+  directly in the menu bar. Enable each reading with its own checkbox in **Settings → General**;
+  all three are off by default, leaving the regular app icon in place. Enabling any metric also
+  shows circular CPU, memory, and storage gauges at the top of the menu, colored by load
+  (green / amber / red). Click one to expand a detail card — CPU shows user/system split, load
+  average, cores, and top processes; memory shows the App / Wired / Compressed breakdown, pressure,
+  swap, and top processes; storage shows the boot volume's used / free. Lightweight enabled metrics
+  refresh every two seconds; more expensive process and fan details are read only while the menu is
+  open. All readings use native APIs with no additional dependencies.
 - **Monitor control** — brightness / contrast / volume for external monitors over DDC/CI,
   plus built-in display brightness. Each display+control supports a **max cap**: the menu slider
   shows the panel's real %, the thumb stops at the cap, and the over-cap range is greyed out
@@ -39,6 +42,9 @@ Apple Silicon, macOS 14+.
 
 ## Usage
 
+- **Status-bar metrics:** open **Settings → General → Status bar metrics** and check CPU utilization,
+  RAM pressure, SSD usage, or any combination. Selected readings share the app's single clickable
+  menu-bar item; uncheck all three to restore the wrench-and-screwdriver icon.
 - **Monitor control:** click the menu bar icon for per-display brightness / contrast / volume
   sliders. Set per-display caps in **Settings → Displays**; each menu slider then greys out the
   range above the cap and the thumb won't go past it (e.g. cap a Dell's contrast at 75%).

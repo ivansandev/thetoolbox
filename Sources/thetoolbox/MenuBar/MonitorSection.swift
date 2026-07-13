@@ -5,7 +5,7 @@ import SwiftUI
 enum MonitorMetric { case cpu, memory, storage }
 
 /// The three system-monitor gauges (CPU / Memory / Storage) with click-to-expand detail cards.
-/// Polling runs only while this view is on screen, i.e. while the menu is open.
+/// While this view is on screen, polling includes all metrics and the detail-only readings.
 struct MonitorSection: View {
     @EnvironmentObject private var monitor: SystemMonitor
     @Binding var expanded: MonitorMetric?
@@ -27,8 +27,8 @@ struct MonitorSection: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .onAppear { monitor.start() }
-        .onDisappear { monitor.stop(); expanded = nil }
+        .onAppear { monitor.startMenuSampling() }
+        .onDisappear { monitor.stopMenuSampling(); expanded = nil }
     }
 
     private func gauge(_ metric: MonitorMetric, _ symbol: String, _ value: Double, _ label: String, tip: String, color: Color? = nil) -> some View {
