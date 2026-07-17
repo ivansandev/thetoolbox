@@ -16,7 +16,7 @@ Commit changes to `main`, then push a version tag — CI builds the Release app 
 ```sh
 git tag v0.2.0 && git push origin v0.2.0
 ```
-Bump the tag (semver `vMAJOR.MINOR.PATCH`) each release. Last: v0.6.5.
+Bump the tag (semver `vMAJOR.MINOR.PATCH`) each release. Last: v0.6.6.
 
 ## Release signing + notarization (no Gatekeeper warning; Accessibility survives updates)
 The release workflow signs the built `.app` with your **Developer ID Application** certificate,

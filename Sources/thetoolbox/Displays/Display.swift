@@ -19,6 +19,10 @@ final class ManagedDisplay: ObservableObject, Identifiable {
     @Published var contrastUI: Double
     @Published var volumeUI: Double
 
+    /// Approximate current luminance in nits (built-in display only; nil for external displays or when
+    /// brightness can't be read). Estimated from the brightness slider position — see `BuiltInDisplaySpecs`.
+    @Published var nits: Double? = nil
+
     init(id: CGDirectDisplayID, key: String, name: String, kind: Kind,
          canBrightness: Bool, canContrast: Bool, canVolume: Bool,
          brightnessUI: Double, contrastUI: Double, volumeUI: Double) {

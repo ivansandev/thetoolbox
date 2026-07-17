@@ -74,6 +74,7 @@ final class DisplayManager: ObservableObject {
                 // Built-in brightness reads are reliable: reflect the real current value.
                 if canBrightness, let actual = builtIn.brightness(id) {
                     display.brightnessUI = CapScaling.clamped(Double(actual), to: saved.brightnessCap)
+                    display.nits = BuiltInDisplaySpecs.nits(brightness: Double(actual))
                 }
                 result.append(display)
             } else {
@@ -110,6 +111,11 @@ final class DisplayManager: ObservableObject {
 
     func setBrightness(_ value: Double, for display: ManagedDisplay) {
         display.brightnessUI = CapScaling.clamped(value, to: brightnessCap(for: display))
+        if display.kind == .builtIn {
+            // Update the nits estimate in lockstep with the slider — before the async hardware write —
+            // so the reading tracks a drag in real time instead of waiting for the next poll tick.
+            display.nits = BuiltInDisplaySpecs.nits(brightness: display.brightnessUI)
+        }
         applyBrightness(display)
     }
 
@@ -195,6 +201,7 @@ final class DisplayManager: ObservableObject {
         // Keep the built-in slider in step with the hardware brightness keys.
         let builtInCap = prefs.settings(for: builtInDisplay.key).brightnessCap
         builtInDisplay.brightnessUI = CapScaling.clamped(builtInActual, to: builtInCap)
+        builtInDisplay.nits = BuiltInDisplaySpecs.nits(brightness: builtInActual)
 
         for display in displays where display.kind == .external && display.canBrightness {
             let settings = prefs.settings(for: display.key)

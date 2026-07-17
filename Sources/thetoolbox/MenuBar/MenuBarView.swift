@@ -234,10 +234,12 @@ private struct DisplayControlRow: View {
 
             if display.canBrightness {
                 let synced = display.kind == .external && displayManager.isBrightnessSynced(display)
+                // `nits` (built-in only) shares the trailing readout with the % — an estimate, no OS
+                // API reports true nits (see BuiltInDisplaySpecs).
                 SliderRow(icon: synced ? "link" : "sun.max", value: Binding(
                     get: { display.brightnessUI },
                     set: { displayManager.setBrightness($0, for: display) }
-                ), cap: displayManager.brightnessCap(for: display))
+                ), cap: displayManager.brightnessCap(for: display), nits: display.nits)
                 .disabled(synced)
             }
             if display.canContrast {
@@ -265,6 +267,8 @@ private struct SliderRow: View {
     let icon: String
     @Binding var value: Double
     var cap: Double = 1.0
+    /// Estimated luminance (built-in brightness only); shown next to the % when non-nil.
+    var nits: Double? = nil
 
     var body: some View {
         HStack(spacing: 8) {
@@ -272,11 +276,19 @@ private struct SliderRow: View {
                 .frame(width: 18)
                 .foregroundStyle(.secondary)
             CappedSlider(value: $value, cap: cap)
-            Text("\(Int((value * 100).rounded()))%")
+            trailing
                 .font(.caption)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
-                .frame(width: 34, alignment: .trailing)
+                // Wider fixed slot when nits share the line, so the slider width stays stable as the
+                // numbers change. The slider gives up the space.
+                .frame(width: nits == nil ? 34 : 108, alignment: .trailing)
         }
+    }
+
+    private var trailing: Text {
+        let percent = Text("\(Int((value * 100).rounded()))%")
+        guard let nits else { return percent }
+        return percent + Text("  ≈\(Int(nits.rounded())) nits")
     }
 }
