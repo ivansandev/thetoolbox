@@ -11,12 +11,18 @@ jobs:
   release:
     runs-on: macos-26
     env:
-      # Set these three repo secrets to sign releases with a stable identity so the macOS
-      # Accessibility grant survives version updates. If they're unset, the build still runs and
-      # falls back to ad-hoc signing (grant is forgotten on each update). See CLAUDE.md.
-      SIGN_CERT_B64: ${{ secrets.SIGNING_CERTIFICATE_P12_BASE64 }}
-      SIGN_CERT_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
-      SIGN_IDENTITY: ${{ secrets.SIGNING_IDENTITY }}
+      # --- Code signing (Developer ID Application cert from your Apple Developer account) ---
+      # A properly signed + notarized app opens with no Gatekeeper warning on any Mac, and the
+      # stable Developer ID keeps the Accessibility (TCC) grant alive across version updates.
+      # If these are unset, the build still runs and falls back to ad-hoc signing (unnotarized,
+      # Gatekeeper-blocked, grant forgotten on each update). See CLAUDE.md for setup.
+      DEVID_CERT_B64: ${{ secrets.DEVELOPER_ID_CERT_P12_BASE64 }}
+      DEVID_CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+      DEVID_IDENTITY: ${{ secrets.DEVELOPER_ID_IDENTITY }}
+      # --- Notarization (App Store Connect API key) ---
+      AC_API_KEY_B64: ${{ secrets.AC_API_KEY_P8_BASE64 }}
+      AC_API_KEY_ID: ${{ secrets.AC_API_KEY_ID }}
+      AC_API_ISSUER_ID: ${{ secrets.AC_API_ISSUER_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -24,15 +30,15 @@ jobs:
         run: brew install xcodegen
 
       - name: Import signing certificate
-        if: env.SIGN_CERT_B64 != ''
+        if: env.DEVID_CERT_B64 != ''
         run: |
           KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
           KEYCHAIN_PW="$(uuidgen)"
           security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
           security unlock-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
-          echo "$SIGN_CERT_B64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
-          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$SIGN_CERT_PASSWORD" -T /usr/bin/codesign
+          echo "$DEVID_CERT_B64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$DEVID_CERT_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PW" "$KEYCHAIN"
           # Prepend our keychain to the search list so codesign can find the identity.
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | sed s/\"//g)
@@ -48,15 +54,42 @@ jobs:
             -derivedDataPath build \
             build
 
-      - name: Re-sign with stable identity
-        if: env.SIGN_CERT_B64 != ''
+      - name: Sign with Developer ID (hardened runtime)
+        if: env.DEVID_CERT_B64 != ''
         run: |
           APP="build/Build/Products/Release/thetoolbox.app"
-          codesign --force --sign "$SIGN_IDENTITY" \
-            --entitlements thetoolbox.entitlements --timestamp=none "$APP"
-          codesign --verify --verbose "$APP"
+          # Sign nested code (frameworks/dylibs) inside-out before the app bundle.
+          if [ -d "$APP/Contents/Frameworks" ]; then
+            find "$APP/Contents/Frameworks" -type f \( -name "*.dylib" -o -perm +111 \) -print0 2>/dev/null \
+              | xargs -0 -I{} codesign --force --options runtime --timestamp \
+                  --sign "$DEVID_IDENTITY" {} || true
+            find "$APP/Contents/Frameworks" -type d -name "*.framework" -print0 2>/dev/null \
+              | xargs -0 -I{} codesign --force --options runtime --timestamp \
+                  --sign "$DEVID_IDENTITY" {} || true
+          fi
+          # Sign the app bundle itself. Hardened runtime + secure timestamp are required for notarization.
+          codesign --force --options runtime --timestamp \
+            --entitlements thetoolbox.entitlements \
+            --sign "$DEVID_IDENTITY" "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
           echo "Designated requirement (stable across versions signed by this cert):"
           codesign --display --requirements - "$APP"
+
+      - name: Notarize and staple
+        if: env.DEVID_CERT_B64 != '' && env.AC_API_KEY_B64 != ''
+        run: |
+          APP="build/Build/Products/Release/thetoolbox.app"
+          echo "$AC_API_KEY_B64" | base64 --decode > "$RUNNER_TEMP/ac_api_key.p8"
+          # notarytool takes a zip; staple goes back onto the .app.
+          ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
+            --key "$RUNNER_TEMP/ac_api_key.p8" \
+            --key-id "$AC_API_KEY_ID" \
+            --issuer "$AC_API_ISSUER_ID" \
+            --wait
+          xcrun stapler staple "$APP"
+          xcrun stapler validate "$APP"
+          rm -f "$RUNNER_TEMP/ac_api_key.p8"
 
       - name: Zip app
         run: ditto -c -k --keepParent "build/Build/Products/Release/thetoolbox.app" thetoolbox.zip
