@@ -4,6 +4,8 @@ enum PreferenceKey {
     static let statusBarCPU = "statusBarCPU.v1"
     static let statusBarMemory = "statusBarMemory.v1"
     static let statusBarStorage = "statusBarStorage.v1"
+    static let presentationModeActive = "presentationModeActive.v1"
+    static let presentationModeSnapshot = "presentationModeSnapshot.v1"
 }
 
 /// Persisted per-display settings. Keyed by the display's stable UUID so they survive

@@ -185,9 +185,9 @@ private struct PowerSection: View {
     }
 }
 
-/// Desktop toggles plus small one-off utilities.
+/// Presentation mode plus small one-off utilities.
 private struct DesktopSection: View {
-    @EnvironmentObject private var desktopManager: DesktopManager
+    @EnvironmentObject private var presentationMode: PresentationModeManager
     @EnvironmentObject private var keyboardCleaner: KeyboardCleaner
 
     var body: some View {
@@ -196,19 +196,13 @@ private struct DesktopSection: View {
                 .font(.subheadline)
                 .fontWeight(.medium)
 
-            Toggle("Desktop icons", isOn: Binding(
-                get: { desktopManager.iconsVisible },
-                set: { desktopManager.setIconsVisible($0) }
+            Toggle("Presentation mode", isOn: Binding(
+                get: { presentationMode.isActive },
+                set: { presentationMode.setActive($0) }
             ))
             .toggleStyle(.switch)
             .controlSize(.small)
-
-            Toggle("Desktop widgets", isOn: Binding(
-                get: { desktopManager.widgetsVisible },
-                set: { desktopManager.setWidgetsVisible($0) }
-            ))
-            .toggleStyle(.switch)
-            .controlSize(.small)
+            .help("Hides desktop icons and widgets (on the desktop and in Stage Manager) and auto-hides the Dock. Toggle off to restore.")
 
             Toggle("Clean the keyboard", isOn: Binding(
                 get: { keyboardCleaner.isActive },

@@ -6,7 +6,7 @@ struct ToolboxApp: App {
     @StateObject private var displayManager = DisplayManager()
     @StateObject private var windowManager = WindowManager()
     @StateObject private var powerManager = PowerManager()
-    @StateObject private var desktopManager = DesktopManager()
+    @StateObject private var presentationModeManager = PresentationModeManager()
     @StateObject private var systemMonitor = SystemMonitor()
     @StateObject private var keyboardCleaner = KeyboardCleaner()
 
@@ -18,7 +18,7 @@ struct ToolboxApp: App {
                 .environmentObject(displayManager)
                 .environmentObject(windowManager)
                 .environmentObject(powerManager)
-                .environmentObject(desktopManager)
+                .environmentObject(presentationModeManager)
                 .environmentObject(systemMonitor)
                 .environmentObject(keyboardCleaner)
         } label: {
@@ -31,7 +31,7 @@ struct ToolboxApp: App {
                 .environmentObject(displayManager)
                 .environmentObject(windowManager)
                 .environmentObject(powerManager)
-                .environmentObject(desktopManager)
+                .environmentObject(presentationModeManager)
         }
     }
 }
