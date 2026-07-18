@@ -332,4 +332,13 @@ enum Format {
         f.allowedUnits = bytes < 1_000_000_000 ? [.useMB] : [.useGB]
         return f.string(fromByteCount: Int64(bytes))
     }
+
+    /// Compact whole-unit free capacity for the monitor gauge, using TB once it is clearer.
+    static func storage(_ bytes: UInt64) -> String {
+        guard bytes > 0 else { return "0 GB" }
+        let useTB = bytes >= 1_000_000_000_000
+        let divisor = useTB ? 1_000_000_000_000.0 : 1_000_000_000.0
+        let amount = Int((Double(bytes) / divisor).rounded())
+        return "\(amount) \(useTB ? "TB" : "GB")"
+    }
 }

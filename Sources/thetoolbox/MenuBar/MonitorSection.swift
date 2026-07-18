@@ -13,12 +13,13 @@ struct MonitorSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
-                gauge(.cpu, "cpu", monitor.cpuUsage, "CPU",
+                gauge(.cpu, "cpu", monitor.cpuUsage, "CPU", fanSummary,
                       tip: "CPU · \(pct(monitor.cpuUsage)) · load \(load1)")
-                gauge(.memory, "memorychip", monitor.pressureFraction, "Memory",
+                gauge(.memory, "memorychip", monitor.pressureFraction, "Memory", swapSummary,
                       tip: "Memory pressure · \(pressureLabel(monitor.pressure))",
                       color: pressureColor(monitor.pressure))
                 gauge(.storage, "internaldrive", monitor.diskUsage, "Storage",
+                      "\(Format.storage(freeDiskBytes)) available",
                       tip: "\(monitor.diskName) · \(Format.bytes(monitor.diskUsed, style: .file)) / \(Format.bytes(monitor.diskTotal, style: .file))")
             }
 
@@ -31,7 +32,8 @@ struct MonitorSection: View {
         .onDisappear { monitor.stopMenuSampling(); expanded = nil }
     }
 
-    private func gauge(_ metric: MonitorMetric, _ symbol: String, _ value: Double, _ label: String, tip: String, color: Color? = nil) -> some View {
+    private func gauge(_ metric: MonitorMetric, _ symbol: String, _ value: Double, _ label: String,
+                       _ secondaryLabel: String, tip: String, color: Color? = nil) -> some View {
         let ringColor = color ?? heatColor(value)
         return Button {
             withAnimation(.easeOut(duration: 0.16)) {
@@ -44,9 +46,17 @@ struct MonitorSection: View {
                     .font(.system(size: 13, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(ringColor)
-                Text(label)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
+                VStack(spacing: 2) {
+                    Text(label)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Text(secondaryLabel)
+                        .font(.system(size: 8))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
@@ -71,6 +81,21 @@ struct MonitorSection: View {
 
     private var load1: String {
         String(format: "%.1f", monitor.loadAverages.first ?? 0)
+    }
+
+    private var fanSummary: String {
+        guard let fastest = monitor.fans.map(\.rpm).max() else { return "Fan —" }
+        guard fastest > 0 else { return "Fans: Off" }
+        return "Fan \(fastest) RPM"
+    }
+
+    private var swapSummary: String {
+        guard monitor.swapUsed > 0 else { return "No Swap" }
+        return "Swap \(Format.bytes(monitor.swapUsed))"
+    }
+
+    private var freeDiskBytes: UInt64 {
+        monitor.diskTotal > monitor.diskUsed ? monitor.diskTotal - monitor.diskUsed : 0
     }
 }
 

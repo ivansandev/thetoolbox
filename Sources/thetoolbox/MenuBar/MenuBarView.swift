@@ -4,26 +4,11 @@ import SwiftUI
 struct MenuBarView: View {
     @EnvironmentObject private var displayManager: DisplayManager
     @Environment(\.openSettings) private var openSettings
-    @AppStorage(PreferenceKey.statusBarCPU) private var showCPU = false
-    @AppStorage(PreferenceKey.statusBarMemory) private var showMemory = false
-    @AppStorage(PreferenceKey.statusBarStorage) private var showStorage = false
     @State private var expandedMonitor: MonitorMetric?
 
-    private var showMonitors: Bool { showCPU || showMemory || showStorage }
-
-    // Fixed window size: MenuBarExtra(.window) can't reliably resize itself as content changes (see
-    // git history — two prior attempts at reactive/measured sizing broke the popover). So the frame
-    // height is a constant, matched to the *collapsed* view's measured natural height, never
-    // recomputed from state. A ScrollView absorbs the rest: an expanded detail card that overflows
-    // scrolls into view instead of needing the window itself to resize. Capped by the screen so it
-    // never runs off small displays.
-    private var windowHeight: CGFloat { min(605, (NSScreen.main?.visibleFrame.height ?? 800) - 40) }
-
     var body: some View {
-        ScrollView {
-            menuContent
-        }
-        .frame(width: 320, height: windowHeight)
+        menuContent
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var menuContent: some View {
@@ -31,10 +16,8 @@ struct MenuBarView: View {
             Text("thetoolbox")
                 .font(.headline)
 
-            if showMonitors {
-                MonitorSection(expanded: $expandedMonitor)
-                Divider()
-            }
+            MonitorSection(expanded: $expandedMonitor)
+            Divider()
 
             if displayManager.displays.isEmpty {
                 Text("No controllable displays detected.")
@@ -74,6 +57,7 @@ struct MenuBarView: View {
             }
         }
         .padding(14)
+        .frame(width: 320)
     }
 }
 
