@@ -30,7 +30,8 @@ Apple Silicon, macOS 14+.
   push the window to the next/previous display) are seeded on first launch and are fully editable.
   **Center** fits the window to the screen — almost-maximized on small/normal displays, a
   comfortable centered size on large/high-res ones. **Move to display** keeps the window's
-  position and size relative to the new screen.
+  position and size relative to the new screen. An optional **Leave room for recent apps**
+  setting keeps managed windows clear of Stage Manager's left-side app strip.
 - **Brightness sync** — make an external monitor follow the built-in display's brightness via a
   configurable linear mapping (its level at built-in 0% and at built-in 100%).
 - **Power (Caffeine)** — keep the Mac awake (prevent idle display sleep), so the screen stays lit
@@ -57,7 +58,8 @@ Apple Silicon, macOS 14+.
   plus add custom sizes & positions, in
   **Settings → Windows**. The menu also has Left/Right/Center/Maximize buttons. The first window
   action triggers the Accessibility prompt — grant it once. DDC monitor control needs no
-  permission.
+  permission. If you use Stage Manager, enable **Leave room for recent apps** there to keep its
+  left-side app strip unobstructed.
 - **Power:** the menu's **Power** section has a keep-awake **duration slider**
   (Off · 15m · 30m · 1h · 2h · 4h · ∞) — dragging right of Off starts keep-awake and shows a live
   "Auto-off in …" countdown; drag back to Off to stop.

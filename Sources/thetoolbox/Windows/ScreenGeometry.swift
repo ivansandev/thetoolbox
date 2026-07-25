@@ -4,6 +4,12 @@ import AppKit
 /// up; the Accessibility API uses a top-left origin (of the primary display) with y growing
 /// down. These helpers convert between the two and pick the screen a window lives on.
 enum ScreenGeometry {
+    /// Stage Manager's recent-app thumbnails are not excluded from `NSScreen.visibleFrame`.
+    /// Reserve a proportional strip, capped in points so it remains useful at different display
+    /// sizes and scaling settings.
+    private static let stageManagerStripFraction: CGFloat = 0.14
+    private static let maximumStageManagerStripWidth: CGFloat = 200
+
     /// The primary display's frame (the screen whose origin is (0, 0)).
     static var primaryFrame: CGRect {
         NSScreen.screens.first(where: { $0.frame.origin == .zero })?.frame
@@ -30,6 +36,28 @@ enum ScreenGeometry {
         return NSScreen.screens.max {
             $0.frame.intersection(rect).area < $1.frame.intersection(rect).area
         }
+    }
+
+    /// The frame window actions should use when the user wants Stage Manager's recent apps to
+    /// remain visible. Apple places that strip on the left, but does not include it in the normal
+    /// AppKit safe/visible-frame insets.
+    static func leavingRoomForStageManager(in visibleFrame: CGRect) -> CGRect {
+        let stripWidth = min(visibleFrame.width * stageManagerStripFraction,
+                             maximumStageManagerStripWidth)
+        return CGRect(x: visibleFrame.minX + stripWidth,
+                      y: visibleFrame.minY,
+                      width: max(0, visibleFrame.width - stripWidth),
+                      height: visibleFrame.height)
+    }
+}
+
+enum StageManagerState {
+    private static let defaults = UserDefaults(suiteName: "com.apple.WindowManager")
+
+    /// `GloballyEnabled` is the system preference macOS itself updates when Stage Manager is
+    /// toggled from Control Center or Desktop & Dock settings.
+    static var isEnabled: Bool {
+        defaults?.bool(forKey: "GloballyEnabled") == true
     }
 }
 

@@ -21,6 +21,13 @@ struct WindowSettingsView: View {
                 }
             }
 
+            Section("Stage Manager") {
+                Toggle("Leave room for recent apps", isOn: $windowManager.leaveRoomForStageManager)
+                Text("When Stage Manager is on, window actions keep its left-side recent apps visible.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Built-in Shortcuts") {
                 shortcutRow("Left Half", .windowLeftHalf)
                 shortcutRow("Right Half", .windowRightHalf)

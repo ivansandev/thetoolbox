@@ -9,6 +9,9 @@ enum ScreenDirection { case left, right }
 
 final class WindowManager: ObservableObject {
     @Published private(set) var customSizes: [CustomSize]
+    @Published var leaveRoomForStageManager: Bool {
+        didSet { prefs.leaveRoomForStageManager = leaveRoomForStageManager }
+    }
 
     private let prefs = Preferences.shared
     private var lastActiveApp: NSRunningApplication?
@@ -16,6 +19,7 @@ final class WindowManager: ObservableObject {
 
     init() {
         customSizes = prefs.loadCustomSizes()
+        leaveRoomForStageManager = prefs.leaveRoomForStageManager
         seedDefaultsIfNeeded()
         migrateCenterFitDefault()
         trackActiveApp()
@@ -132,7 +136,7 @@ final class WindowManager: ObservableObject {
     /// rect (computed in AppKit coordinates from that screen's visible frame).
     private func applyFrame(_ target: (_ visibleFrame: CGRect, _ currentSize: CGSize) -> CGRect) {
         guard let ctx = focusedWindow() else { return }
-        let targetAppKit = target(ctx.screen.visibleFrame, ctx.appKitRect.size)
+        let targetAppKit = target(workingFrame(for: ctx.screen), ctx.appKitRect.size)
         Self.setFrame(ScreenGeometry.flipY(targetAppKit), for: ctx.window)
     }
 
@@ -147,8 +151,8 @@ final class WindowManager: ObservableObject {
 
         let n = screens.count
         let targetIndex = direction == .left ? (current - 1 + n) % n : (current + 1) % n
-        let from = ctx.screen.visibleFrame
-        let to = screens[targetIndex].visibleFrame
+        let from = workingFrame(for: ctx.screen)
+        let to = workingFrame(for: screens[targetIndex])
 
         // Express the window as fractions of the source visible frame, then re-apply on the target.
         let fracX = (ctx.appKitRect.minX - from.minX) / from.width
@@ -161,6 +165,14 @@ final class WindowManager: ObservableObject {
 
         Self.setFrame(ScreenGeometry.flipY(CGRect(x: x, y: y, width: width, height: height)),
                       for: ctx.window)
+    }
+
+    private func workingFrame(for screen: NSScreen) -> CGRect {
+        let visibleFrame = screen.visibleFrame
+        guard leaveRoomForStageManager, StageManagerState.isEnabled else {
+            return visibleFrame
+        }
+        return ScreenGeometry.leavingRoomForStageManager(in: visibleFrame)
     }
 
     /// Shared resolution of the frontmost app's focused AX window: handles the Accessibility gate,

@@ -6,6 +6,7 @@ enum PreferenceKey {
     static let statusBarStorage = "statusBarStorage.v1"
     static let presentationModeActive = "presentationModeActive.v1"
     static let presentationModeSnapshot = "presentationModeSnapshot.v1"
+    static let leaveRoomForStageManager = "leaveRoomForStageManager.v1"
 }
 
 /// Persisted per-display settings. Keyed by the display's stable UUID so they survive
@@ -92,5 +93,12 @@ final class Preferences {
     var brightnessKeysFollowCursor: Bool {
         get { defaults.object(forKey: followCursorKey) as? Bool ?? true }
         set { defaults.set(newValue, forKey: followCursorKey) }
+    }
+
+    // MARK: Window management
+
+    var leaveRoomForStageManager: Bool {
+        get { defaults.bool(forKey: PreferenceKey.leaveRoomForStageManager) }
+        set { defaults.set(newValue, forKey: PreferenceKey.leaveRoomForStageManager) }
     }
 }
