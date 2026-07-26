@@ -29,8 +29,8 @@ struct WindowSettingsView: View {
             }
 
             Section("Built-in Shortcuts") {
-                shortcutRow("Left Half", .windowLeftHalf)
-                shortcutRow("Right Half", .windowRightHalf)
+                shortcutRow("Left (½ → ⅓ → ⅔)", .windowLeftHalf)
+                shortcutRow("Right (½ → ⅓ → ⅔)", .windowRightHalf)
                 shortcutRow("Top Half", .windowTopHalf)
                 shortcutRow("Bottom Half", .windowBottomHalf)
                 shortcutRow("Maximize", .windowMaximize)

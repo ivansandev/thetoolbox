@@ -103,6 +103,19 @@ final class WindowManager: ObservableObject {
         applyFrame { visibleFrame, _ in action.rect(in: visibleFrame) }
     }
 
+    /// Repeating a horizontal shortcut cycles through the useful widths on that same edge.
+    /// A window that is not already at one of those placements starts at one half.
+    private func cycleHorizontalPlacement(_ actions: [WindowAction]) {
+        guard let ctx = focusedWindow(), !actions.isEmpty else { return }
+        let visibleFrame = workingFrame(for: ctx.screen)
+        let placements = actions.map { $0.rect(in: visibleFrame) }
+        let currentIndex = placements.firstIndex {
+            Self.framesApproximatelyMatch(ctx.appKitRect, $0)
+        }
+        let nextIndex = currentIndex.map { ($0 + 1) % placements.count } ?? 0
+        Self.setFrame(ScreenGeometry.flipY(placements[nextIndex]), for: ctx.window)
+    }
+
     func apply(_ size: CustomSize) {
         applyFrame { visibleFrame, _ in size.rect(in: visibleFrame) }
     }
@@ -221,14 +234,18 @@ final class WindowManager: ObservableObject {
 
     private func registerBuiltInShortcuts() {
         let bindings: [(KeyboardShortcuts.Name, WindowAction)] = [
-            (.windowLeftHalf, .leftHalf),
-            (.windowRightHalf, .rightHalf),
             (.windowTopHalf, .topHalf),
             (.windowBottomHalf, .bottomHalf),
             (.windowMaximize, .maximize),
         ]
         for (name, action) in bindings {
             KeyboardShortcuts.onKeyDown(for: name) { [weak self] in self?.perform(action) }
+        }
+        KeyboardShortcuts.onKeyDown(for: .windowLeftHalf) { [weak self] in
+            self?.cycleHorizontalPlacement([.leftHalf, .leftThird, .leftTwoThirds])
+        }
+        KeyboardShortcuts.onKeyDown(for: .windowRightHalf) { [weak self] in
+            self?.cycleHorizontalPlacement([.rightHalf, .rightThird, .rightTwoThirds])
         }
         KeyboardShortcuts.onKeyDown(for: .windowCenter) { [weak self] in self?.center() }
         KeyboardShortcuts.onKeyDown(for: .windowCenterFit) { [weak self] in self?.centerFit() }
@@ -300,5 +317,16 @@ final class WindowManager: ObservableObject {
         if let value = AXValueCreate(.cgPoint, &position) {
             AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, value)
         }
+    }
+
+    /// AX-managed windows can land a few points away from the requested frame because of minimum
+    /// sizes or app-specific resize increments. Keep the cycle tolerant without mistaking a
+    /// manually positioned window for one of our placements.
+    private static func framesApproximatelyMatch(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
+        let tolerance: CGFloat = 8
+        return abs(lhs.minX - rhs.minX) <= tolerance
+            && abs(lhs.minY - rhs.minY) <= tolerance
+            && abs(lhs.width - rhs.width) <= tolerance
+            && abs(lhs.height - rhs.height) <= tolerance
     }
 }
