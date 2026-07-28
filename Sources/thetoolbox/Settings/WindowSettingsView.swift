@@ -10,7 +10,7 @@ struct WindowSettingsView: View {
             Section("Permission") {
                 HStack(spacing: 8) {
                     Image(systemName: accessibilityGranted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                        .foregroundStyle(accessibilityGranted ? .green : .orange)
+                        .foregroundStyle(accessibilityGranted ? .statusGreen : .orange)
                     Text(accessibilityGranted
                          ? "Accessibility access granted."
                          : "Accessibility access is required to move windows.")

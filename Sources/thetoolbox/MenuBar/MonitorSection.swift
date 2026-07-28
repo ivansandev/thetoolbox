@@ -124,7 +124,7 @@ struct RingGauge: View {
 
 /// Green ≤ 70%, amber 70–90%, red > 90% — a glance across the row shows what's under load.
 func heatColor(_ value: Double) -> Color {
-    value > 0.90 ? .red : value > 0.70 ? .orange : .green
+    value > 0.90 ? .red : value > 0.70 ? .orange : .statusGreen
 }
 
 private func pct(_ value: Double) -> String { "\(Int((value * 100).rounded()))%" }
@@ -141,7 +141,7 @@ private func pressureLabel(_ pressure: MemPressure) -> String {
 /// pressure level, not a threshold on the percentage itself.
 private func pressureColor(_ pressure: MemPressure) -> Color {
     switch pressure {
-    case .normal: return .green
+    case .normal: return .statusGreen
     case .warning: return .yellow
     case .critical: return .red
     }
