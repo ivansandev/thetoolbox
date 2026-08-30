@@ -10,9 +10,10 @@ Apple Silicon, macOS 14+.
 
 ## Features
 
-- **System monitors** — optionally show CPU utilization, RAM pressure, SSD usage, or any combination
-  directly in the menu bar. Enable each reading with its own checkbox in **Settings → General**;
-  all three are off by default, leaving the regular app icon in place. Enabling any metric also
+- **System and AI status metrics** — optionally show CPU utilization, RAM pressure, SSD usage,
+  Claude five-hour remaining, ChatGPT five-hour remaining, or any combination directly in the
+  menu bar. Enable each reading with its own checkbox in **Settings → General**; all are off by
+  default, leaving the regular app icon in place. Enabling any system metric also
   shows circular CPU, memory, and storage gauges at the top of the menu, colored by load
   (green / amber / red). Click one to expand a detail card — CPU shows user/system split, load
   average, cores, and top processes; memory shows the App / Wired / Compressed breakdown, pressure,
@@ -53,8 +54,10 @@ Apple Silicon, macOS 14+.
 ## Usage
 
 - **Status-bar metrics:** open **Settings → General → Status bar metrics** and check CPU utilization,
-  RAM pressure, SSD usage, or any combination. Selected readings share the app's single clickable
-  menu-bar item; uncheck all three to restore the wrench-and-screwdriver icon.
+  RAM pressure, SSD usage, Claude's five-hour limit, ChatGPT's five-hour limit, or any combination.
+  AI values use compact `C` and `G` prefixes and show the percentage remaining. Selected readings
+  share the app's single clickable menu-bar item; uncheck all metrics to restore the
+  wrench-and-screwdriver icon.
 - **Monitor control:** click the menu bar icon for per-display brightness / contrast / volume
   sliders. Set per-display caps in **Settings → Displays**; each menu slider then greys out the
   range above the cap and the thumb won't go past it (e.g. cap a Dell's contrast at 75%).

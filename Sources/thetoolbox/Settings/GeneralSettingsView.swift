@@ -7,6 +7,8 @@ struct GeneralSettingsView: View {
     @AppStorage(PreferenceKey.statusBarCPU) private var showCPU = false
     @AppStorage(PreferenceKey.statusBarMemory) private var showMemory = false
     @AppStorage(PreferenceKey.statusBarStorage) private var showStorage = false
+    @AppStorage(PreferenceKey.statusBarClaudeFiveHour) private var showClaudeFiveHour = false
+    @AppStorage(PreferenceKey.statusBarChatGPTFiveHour) private var showChatGPTFiveHour = false
 
     var body: some View {
         Form {
@@ -27,6 +29,9 @@ struct GeneralSettingsView: View {
                 Toggle("CPU utilization", isOn: $showCPU)
                 Toggle("RAM pressure", isOn: $showMemory)
                 Toggle("SSD usage", isOn: $showStorage)
+                Divider()
+                Toggle("Claude 5-hour limit", isOn: $showClaudeFiveHour)
+                Toggle("ChatGPT 5-hour limit", isOn: $showChatGPTFiveHour)
             }
             .toggleStyle(.checkbox)
 

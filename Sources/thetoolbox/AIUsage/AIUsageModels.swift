@@ -36,6 +36,49 @@ struct AIProviderSnapshot: Codable, Hashable, Sendable {
     let windows: [AIUsageWindow]
     let fetchedAt: Date
     let planName: String?
+
+    /// The collapsed menu should describe the shared weekly quota, not whichever short or
+    /// model-specific window happens to have the least usage remaining.
+    var quickSummaryWindow: AIUsageWindow? {
+        let exactSharedWeekly: AIUsageWindow?
+        switch provider {
+        case .claude:
+            exactSharedWeekly = windows.first {
+                $0.identifier == "seven_day" || $0.identifier == "weekly_all"
+            }
+        case .chatGPT:
+            exactSharedWeekly = windows.first {
+                $0.identifier.hasPrefix("codex:")
+                    && $0.displayName.caseInsensitiveCompare("Weekly") == .orderedSame
+            }
+        }
+
+        return exactSharedWeekly
+            ?? windows.first { $0.displayName.caseInsensitiveCompare("Weekly") == .orderedSame }
+            ?? windows.first { $0.displayName.localizedCaseInsensitiveContains("weekly") }
+            ?? windows.min { $0.remainingPercent < $1.remainingPercent }
+    }
+
+    /// The shared five-hour window used by the optional status-bar reading. Model-specific
+    /// windows are deliberately secondary so the compact label has stable meaning.
+    var fiveHourSummaryWindow: AIUsageWindow? {
+        let exactSharedFiveHour: AIUsageWindow?
+        switch provider {
+        case .claude:
+            exactSharedFiveHour = windows.first {
+                $0.identifier == "five_hour" || $0.identifier == "session"
+            }
+        case .chatGPT:
+            exactSharedFiveHour = windows.first {
+                $0.identifier.hasPrefix("codex:")
+                    && $0.displayName.caseInsensitiveCompare("5-hour") == .orderedSame
+            }
+        }
+
+        return exactSharedFiveHour
+            ?? windows.first { $0.displayName.caseInsensitiveCompare("5-hour") == .orderedSame }
+            ?? windows.first { $0.displayName.localizedCaseInsensitiveContains("5-hour") }
+    }
 }
 
 enum AIProviderAvailability: Equatable, Sendable {

@@ -10,6 +10,8 @@ final class AIUsageManager: ObservableObject {
     private let store: AIUsageSnapshotStore
     private let pathMonitor = NWPathMonitor()
     private var hasStarted = false
+    private var requestedProviders: Set<AIProviderID> = []
+    private var pendingProviders: Set<AIProviderID> = []
     private var refreshLoop: Task<Void, Never>?
     private var wakeObserver: NSObjectProtocol?
 
@@ -24,9 +26,18 @@ final class AIUsageManager: ObservableObject {
         })
     }
 
-    /// Defers account/keychain access until the user first opens the Toolbox menu.
-    func start() {
-        guard !hasStarted else { return }
+    /// Defers provider access until the menu opens or an AI status-bar metric requests it.
+    func start(providers: Set<AIProviderID> = Set(AIProviderID.allCases)) {
+        guard !providers.isEmpty else { return }
+        let newlyRequested = providers.subtracting(requestedProviders)
+        requestedProviders.formUnion(providers)
+
+        if hasStarted {
+            if !newlyRequested.isEmpty {
+                Task { await refresh(providers: newlyRequested) }
+            }
+            return
+        }
         hasStarted = true
 
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
@@ -62,11 +73,35 @@ final class AIUsageManager: ObservableObject {
     }
 
     func refresh() async {
-        guard !isRefreshing else { return }
-        isRefreshing = true
-        defer { isRefreshing = false }
+        await refresh(providers: requestedProviders)
+    }
 
-        let providers: [any AIUsageProvider] = [ClaudeUsageProvider(), ChatGPTUsageProvider()]
+    private func refresh(providers providerIDs: Set<AIProviderID>) async {
+        guard !providerIDs.isEmpty else { return }
+        if isRefreshing {
+            pendingProviders.formUnion(providerIDs)
+            return
+        }
+        isRefreshing = true
+
+        var providersToRefresh = providerIDs
+        while !providersToRefresh.isEmpty {
+            await fetch(providers: providersToRefresh)
+            providersToRefresh = pendingProviders
+            pendingProviders = []
+        }
+
+        isRefreshing = false
+        store.save(AIProviderID.allCases.compactMap { states[$0]?.snapshot })
+    }
+
+    private func fetch(providers providerIDs: Set<AIProviderID>) async {
+        let providers: [any AIUsageProvider] = providerIDs.map { provider in
+            switch provider {
+            case .claude: return ClaudeUsageProvider()
+            case .chatGPT: return ChatGPTUsageProvider()
+            }
+        }
         await withTaskGroup(of: (AIProviderID, Result<AIProviderSnapshot, Error>).self) { group in
             for provider in providers {
                 group.addTask {
@@ -88,14 +123,11 @@ final class AIUsageManager: ObservableObject {
                 }
             }
         }
-
-        store.save(AIProviderID.allCases.compactMap { states[$0]?.snapshot })
     }
 
     func summary(for provider: AIProviderID) -> String {
-        guard let windows = states[provider]?.snapshot?.windows, !windows.isEmpty else { return "—" }
-        let lowest = windows.map(\.remainingPercent).min() ?? 0
-        return "\(Int(lowest.rounded()))%"
+        guard let window = states[provider]?.snapshot?.quickSummaryWindow else { return "—" }
+        return "\(Int(window.remainingPercent.rounded()))%"
     }
 }
 

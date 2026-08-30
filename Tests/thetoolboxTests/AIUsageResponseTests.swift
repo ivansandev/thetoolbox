@@ -81,4 +81,70 @@ final class AIUsageResponseTests: XCTestCase {
         XCTAssertTrue(PowerManager.parseSystemSleepDisabled(#""SleepDisabled"=True"#))
         XCTAssertFalse(PowerManager.parseSystemSleepDisabled(#""SleepDisabled" = No"#))
     }
+
+    func testQuickSummaryPrefersSharedWeeklyLimitOverLowestRemainingLimit() {
+        let claude = AIProviderSnapshot(
+            provider: .claude,
+            windows: [
+                usageWindow(.claude, "five_hour", "5-hour limit", remaining: 8),
+                usageWindow(.claude, "weekly_scoped", "Weekly Fable", remaining: 95),
+                usageWindow(.claude, "seven_day", "Weekly", remaining: 62)
+            ],
+            fetchedAt: .now,
+            planName: nil
+        )
+        let chatGPT = AIProviderSnapshot(
+            provider: .chatGPT,
+            windows: [
+                usageWindow(.chatGPT, "codex:primary", "5-hour", remaining: 4),
+                usageWindow(.chatGPT, "codex_spark:secondary", "Spark · Weekly", remaining: 90),
+                usageWindow(.chatGPT, "codex:secondary", "Weekly", remaining: 73)
+            ],
+            fetchedAt: .now,
+            planName: nil
+        )
+
+        XCTAssertEqual(claude.quickSummaryWindow?.remainingPercent, 62)
+        XCTAssertEqual(chatGPT.quickSummaryWindow?.remainingPercent, 73)
+    }
+
+    func testStatusSummaryPrefersSharedFiveHourLimit() {
+        let claude = AIProviderSnapshot(
+            provider: .claude,
+            windows: [
+                usageWindow(.claude, "weekly_scoped", "Weekly Fable", remaining: 20),
+                usageWindow(.claude, "five_hour", "5-hour limit", remaining: 81)
+            ],
+            fetchedAt: .now,
+            planName: nil
+        )
+        let chatGPT = AIProviderSnapshot(
+            provider: .chatGPT,
+            windows: [
+                usageWindow(.chatGPT, "codex_spark:primary", "Spark · 5-hour", remaining: 92),
+                usageWindow(.chatGPT, "codex:primary", "5-hour", remaining: 66),
+                usageWindow(.chatGPT, "codex:secondary", "Weekly", remaining: 88)
+            ],
+            fetchedAt: .now,
+            planName: nil
+        )
+
+        XCTAssertEqual(claude.fiveHourSummaryWindow?.remainingPercent, 81)
+        XCTAssertEqual(chatGPT.fiveHourSummaryWindow?.remainingPercent, 66)
+    }
+
+    private func usageWindow(
+        _ provider: AIProviderID,
+        _ identifier: String,
+        _ displayName: String,
+        remaining: Double
+    ) -> AIUsageWindow {
+        AIUsageWindow(
+            provider: provider,
+            identifier: identifier,
+            displayName: displayName,
+            usedPercent: 100 - remaining,
+            resetsAt: nil
+        )
+    }
 }

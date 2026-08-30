@@ -49,6 +49,7 @@ struct AIUsageSection: View {
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .help("Shared weekly limits remaining")
             }
         }
         .onAppear { usageManager.start() }

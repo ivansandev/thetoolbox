@@ -24,7 +24,7 @@ struct ToolboxApp: App {
                 .environmentObject(keyboardCleaner)
                 .environmentObject(aiUsageManager)
         } label: {
-            StatusBarLabel(monitor: systemMonitor)
+            StatusBarLabel(monitor: systemMonitor, usageManager: aiUsageManager)
         }
         .menuBarExtraStyle(.window)
 
