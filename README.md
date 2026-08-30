@@ -44,7 +44,8 @@ Apple Silicon, macOS 14+.
   and ChatGPT usage windows, reset times, and plan names. Claude uses the signed-in Claude Code
   credential; ChatGPT limits come from the signed-in Codex CLI's supported app-server protocol.
   Values refresh every five minutes, after wake, and when connectivity returns; saved values stay
-  visible and are clearly marked stale if a refresh fails.
+  visible and are clearly marked stale if a refresh fails. A master switch in **Settings → General**
+  hides all AI usage UI and stops provider requests when the feature is not wanted.
 - **Brightness keys → display under the pointer** — the hardware brightness keys adjust
   whichever display the pointer is over (external monitors via DDC, with an on-screen overlay);
   the built-in display keeps its native behavior.
@@ -79,7 +80,8 @@ Apple Silicon, macOS 14+.
   Mac, then asks for administrator approval. Turn it off to restore normal sleep.
 - **AI usage:** expand **AI Usage** immediately below Power. The collapsed row shows the shared
   weekly remaining limit for Claude and ChatGPT; the expanded view shows every current usage
-  window and its reset countdown. Use the refresh button for an immediate update.
+  window and its reset countdown. Use the refresh button for an immediate update, or disable the
+  feature entirely with **Settings → General → Enable AI usage**.
 - **Brightness keys:** with Accessibility granted, press the hardware brightness keys while the
   pointer is over an external monitor to change *that* monitor (toggle in **Settings → General**).
 - **Desktop:** the menu's **Desktop** section toggles desktop icons and widgets (each briefly
@@ -127,8 +129,9 @@ xcodebuild -scheme thetoolbox -configuration Debug build
   (System Settings → Privacy & Security → Accessibility). The app prompts on first use.
 - **Brightness-key routing** (to the display under the pointer) uses a session event tap, which
   also requires Accessibility.
-- **AI usage:** the Claude access token is requested from Claude Code's macOS Keychain item and is
-  held only in memory for the read-only usage request. ChatGPT usage is requested from
+- **AI usage:** the Claude access token is requested from Claude Code's macOS Keychain item once
+  per app session and held only in memory for read-only usage requests, avoiding a Keychain dialog
+  on every refresh. ChatGPT usage is requested from
   `codex app-server`; thetoolbox never reads Codex's authentication file. Cached data contains
   only percentages, reset dates, plan labels, and refresh times.
 - **Prevent all sleep:** macOS shows its administrator authorization dialog when changing the

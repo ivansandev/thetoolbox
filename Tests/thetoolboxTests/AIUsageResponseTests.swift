@@ -2,6 +2,18 @@ import XCTest
 @testable import thetoolbox
 
 final class AIUsageResponseTests: XCTestCase {
+    func testClaudeCredentialCacheReadsKeychainLoaderOnlyOncePerAppSession() async throws {
+        let loader = ClaudeCredentialLoaderSpy()
+        let cache = ClaudeCredentialCache(loader: { try loader.read() })
+
+        let first = try await cache.read()
+        let second = try await cache.read()
+
+        XCTAssertEqual(first.accessToken, "cached-token")
+        XCTAssertEqual(second.accessToken, "cached-token")
+        XCTAssertEqual(loader.readCount, 1)
+    }
+
     func testClaudeDecodesCanonicalAndActiveScopedWindowsWithoutDuplicates() throws {
         let data = Data(#"""
         {
@@ -146,5 +158,23 @@ final class AIUsageResponseTests: XCTestCase {
             usedPercent: 100 - remaining,
             resetsAt: nil
         )
+    }
+}
+
+private final class ClaudeCredentialLoaderSpy: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    var readCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
+    }
+
+    func read() throws -> ClaudeCredential {
+        lock.lock()
+        count += 1
+        lock.unlock()
+        return ClaudeCredential(accessToken: "cached-token", subscriptionType: "max")
     }
 }

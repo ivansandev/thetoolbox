@@ -8,8 +8,10 @@ final class AIUsageManager: ObservableObject {
     @Published private(set) var isRefreshing = false
 
     private let store: AIUsageSnapshotStore
-    private let pathMonitor = NWPathMonitor()
+    private var pathMonitor: NWPathMonitor?
     private var hasStarted = false
+    private var isEnabled = false
+    private var lifecycleGeneration = 0
     private var requestedProviders: Set<AIProviderID> = []
     private var pendingProviders: Set<AIProviderID> = []
     private var refreshLoop: Task<Void, Never>?
@@ -29,6 +31,7 @@ final class AIUsageManager: ObservableObject {
     /// Defers provider access until the menu opens or an AI status-bar metric requests it.
     func start(providers: Set<AIProviderID> = Set(AIProviderID.allCases)) {
         guard !providers.isEmpty else { return }
+        isEnabled = true
         let newlyRequested = providers.subtracting(requestedProviders)
         requestedProviders.formUnion(providers)
 
@@ -48,6 +51,8 @@ final class AIUsageManager: ObservableObject {
             Task { @MainActor in await self?.refresh() }
         }
 
+        let pathMonitor = NWPathMonitor()
+        self.pathMonitor = pathMonitor
         pathMonitor.pathUpdateHandler = { [weak self] path in
             guard path.status == .satisfied else { return }
             Task { @MainActor in await self?.refresh() }
@@ -64,38 +69,61 @@ final class AIUsageManager: ObservableObject {
         }
     }
 
+    /// Stops provider access while preserving cached values and the user's metric selections.
+    /// A later `start` call creates fresh wake/network observers and resumes normal refreshes.
+    func stop() {
+        guard isEnabled || hasStarted else { return }
+        isEnabled = false
+        hasStarted = false
+        lifecycleGeneration += 1
+        requestedProviders = []
+        pendingProviders = []
+        refreshLoop?.cancel()
+        refreshLoop = nil
+        pathMonitor?.cancel()
+        pathMonitor = nil
+        if let wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+            self.wakeObserver = nil
+        }
+        isRefreshing = false
+    }
+
     deinit {
         refreshLoop?.cancel()
-        pathMonitor.cancel()
+        pathMonitor?.cancel()
         if let wakeObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
         }
     }
 
     func refresh() async {
+        guard isEnabled else { return }
         await refresh(providers: requestedProviders)
     }
 
     private func refresh(providers providerIDs: Set<AIProviderID>) async {
-        guard !providerIDs.isEmpty else { return }
+        guard isEnabled, !providerIDs.isEmpty else { return }
         if isRefreshing {
             pendingProviders.formUnion(providerIDs)
             return
         }
         isRefreshing = true
+        let generation = lifecycleGeneration
 
         var providersToRefresh = providerIDs
-        while !providersToRefresh.isEmpty {
-            await fetch(providers: providersToRefresh)
+        while isEnabled, generation == lifecycleGeneration, !providersToRefresh.isEmpty {
+            await fetch(providers: providersToRefresh, generation: generation)
             providersToRefresh = pendingProviders
             pendingProviders = []
         }
 
+        guard isEnabled, generation == lifecycleGeneration else { return }
         isRefreshing = false
         store.save(AIProviderID.allCases.compactMap { states[$0]?.snapshot })
     }
 
-    private func fetch(providers providerIDs: Set<AIProviderID>) async {
+    private func fetch(providers providerIDs: Set<AIProviderID>, generation: Int) async {
         let providers: [any AIUsageProvider] = providerIDs.map { provider in
             switch provider {
             case .claude: return ClaudeUsageProvider()
@@ -111,6 +139,7 @@ final class AIUsageManager: ObservableObject {
             }
 
             for await (provider, result) in group {
+                guard isEnabled, generation == lifecycleGeneration else { continue }
                 switch result {
                 case let .success(snapshot):
                     states[provider] = .available(snapshot, isStale: false)

@@ -6,6 +6,7 @@ enum PreferenceKey {
     static let statusBarStorage = "statusBarStorage.v1"
     static let statusBarClaudeFiveHour = "statusBarClaudeFiveHour.v1"
     static let statusBarChatGPTFiveHour = "statusBarChatGPTFiveHour.v1"
+    static let aiUsageEnabled = "aiUsageEnabled.v1"
     static let presentationModeActive = "presentationModeActive.v1"
     static let presentationModeSnapshot = "presentationModeSnapshot.v1"
     static let leaveRoomForStageManager = "leaveRoomForStageManager.v1"

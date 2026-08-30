@@ -19,7 +19,7 @@ struct ClaudeUsageProvider: AIUsageProvider {
     }
 
     func fetchUsage() async throws -> AIProviderSnapshot {
-        let credential = try credentialReader.read()
+        let credential = try await credentialReader.read()
         var request = URLRequest(url: endpoint)
         request.timeoutInterval = 15
         request.setValue("Bearer \(credential.accessToken)", forHTTPHeaderField: "Authorization")
@@ -72,7 +72,46 @@ struct ClaudeCredential: Sendable {
 }
 
 struct ClaudeCredentialReader: Sendable {
+    private let cache: ClaudeCredentialCache
+
+    init(cache: ClaudeCredentialCache = .shared) {
+        self.cache = cache
+    }
+
+    func read() async throws -> ClaudeCredential {
+        try await cache.read()
+    }
+}
+
+/// Claude Code owns this Keychain item. Reading it on every five-minute refresh can repeatedly
+/// trigger macOS's access dialog on machines where the item's ACL does not retain "Always Allow".
+/// Keep the decoded credential only in process memory so each app launch asks at most once.
+actor ClaudeCredentialCache {
+    static let shared = ClaudeCredentialCache()
+
+    typealias Loader = @Sendable () throws -> ClaudeCredential
+
+    private let loader: Loader
+    private var credential: ClaudeCredential?
+
+    init() {
+        loader = { try ClaudeKeychainCredentialLoader.read() }
+    }
+
+    init(loader: @escaping Loader) {
+        self.loader = loader
+    }
+
     func read() throws -> ClaudeCredential {
+        if let credential { return credential }
+        let credential = try loader()
+        self.credential = credential
+        return credential
+    }
+}
+
+private enum ClaudeKeychainCredentialLoader {
+    static func read() throws -> ClaudeCredential {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "Claude Code-credentials",

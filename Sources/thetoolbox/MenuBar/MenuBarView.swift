@@ -4,6 +4,7 @@ import SwiftUI
 struct MenuBarView: View {
     @EnvironmentObject private var displayManager: DisplayManager
     @Environment(\.openSettings) private var openSettings
+    @AppStorage(PreferenceKey.aiUsageEnabled) private var aiUsageEnabled = true
     @State private var expandedMonitor: MonitorMetric?
 
     var body: some View {
@@ -39,9 +40,10 @@ struct MenuBarView: View {
 
             Divider()
 
-            AIUsageSection()
-
-            Divider()
+            if aiUsageEnabled {
+                AIUsageSection()
+                Divider()
+            }
 
             DesktopSection()
 

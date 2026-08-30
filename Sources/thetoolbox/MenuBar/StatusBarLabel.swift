@@ -10,6 +10,7 @@ struct StatusBarLabel: View {
     @AppStorage(PreferenceKey.statusBarStorage) private var showStorage = false
     @AppStorage(PreferenceKey.statusBarClaudeFiveHour) private var showClaudeFiveHour = false
     @AppStorage(PreferenceKey.statusBarChatGPTFiveHour) private var showChatGPTFiveHour = false
+    @AppStorage(PreferenceKey.aiUsageEnabled) private var aiUsageEnabled = true
 
     var body: some View {
         Group {
@@ -33,6 +34,7 @@ struct StatusBarLabel: View {
         .onChange(of: showStorage) { _, _ in updatePolling() }
         .onChange(of: showClaudeFiveHour) { _, _ in updateAIUsage() }
         .onChange(of: showChatGPTFiveHour) { _, _ in updateAIUsage() }
+        .onChange(of: aiUsageEnabled) { _, _ in updateAIUsage() }
     }
 
     private var metricsText: Text {
@@ -40,8 +42,12 @@ struct StatusBarLabel: View {
         if showCPU { parts.append(metricText(value: monitor.cpuUsage)) }
         if showMemory { parts.append(metricText(value: monitor.pressureFraction)) }
         if showStorage { parts.append(metricText(value: monitor.diskUsage)) }
-        if showClaudeFiveHour { parts.append(aiMetricText(label: "Claude", provider: .claude)) }
-        if showChatGPTFiveHour { parts.append(aiMetricText(label: "Codex", provider: .chatGPT)) }
+        if aiUsageEnabled && showClaudeFiveHour {
+            parts.append(aiMetricText(label: "Claude", provider: .claude))
+        }
+        if aiUsageEnabled && showChatGPTFiveHour {
+            parts.append(aiMetricText(label: "Codex", provider: .chatGPT))
+        }
 
         guard let first = parts.first else { return Text("") }
         return parts.dropFirst().reduce(first) { $0 + Text("  ") + $1 }
@@ -56,7 +62,7 @@ struct StatusBarLabel: View {
     }
 
     private var hasSelectedMetric: Bool {
-        !selectedMetrics.isEmpty || showClaudeFiveHour || showChatGPTFiveHour
+        !selectedMetrics.isEmpty || (aiUsageEnabled && (showClaudeFiveHour || showChatGPTFiveHour))
     }
 
     private var selectedMetrics: StatusBarMetrics {
@@ -72,10 +78,10 @@ struct StatusBarLabel: View {
         if showCPU { readings.append("CPU utilization \(percent(monitor.cpuUsage))") }
         if showMemory { readings.append("RAM pressure \(percent(monitor.pressureFraction))") }
         if showStorage { readings.append("SSD usage \(percent(monitor.diskUsage))") }
-        if showClaudeFiveHour {
+        if aiUsageEnabled && showClaudeFiveHour {
             readings.append("Claude five-hour usage remaining \(fiveHourPercent(for: .claude))")
         }
-        if showChatGPTFiveHour {
+        if aiUsageEnabled && showChatGPTFiveHour {
             readings.append("Codex five-hour usage remaining \(fiveHourPercent(for: .chatGPT))")
         }
         return readings.joined(separator: ", ")
@@ -87,6 +93,10 @@ struct StatusBarLabel: View {
     }
 
     private func updateAIUsage() {
+        guard aiUsageEnabled else {
+            usageManager.stop()
+            return
+        }
         var providers: Set<AIProviderID> = []
         if showClaudeFiveHour { providers.insert(.claude) }
         if showChatGPTFiveHour { providers.insert(.chatGPT) }
