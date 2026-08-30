@@ -31,7 +31,7 @@ struct GeneralSettingsView: View {
                 Toggle("SSD usage", isOn: $showStorage)
                 Divider()
                 Toggle("Claude 5-hour limit", isOn: $showClaudeFiveHour)
-                Toggle("ChatGPT 5-hour limit", isOn: $showChatGPTFiveHour)
+                Toggle("Codex 5-hour limit", isOn: $showChatGPTFiveHour)
             }
             .toggleStyle(.checkbox)
 

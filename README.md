@@ -11,7 +11,7 @@ Apple Silicon, macOS 14+.
 ## Features
 
 - **System and AI status metrics** — optionally show CPU utilization, RAM pressure, SSD usage,
-  Claude five-hour remaining, ChatGPT five-hour remaining, or any combination directly in the
+  Claude five-hour remaining, Codex five-hour remaining, or any combination directly in the
   menu bar. Enable each reading with its own checkbox in **Settings → General**; all are off by
   default, leaving the regular app icon in place. Enabling any system metric also
   shows circular CPU, memory, and storage gauges at the top of the menu, colored by load
@@ -54,9 +54,9 @@ Apple Silicon, macOS 14+.
 ## Usage
 
 - **Status-bar metrics:** open **Settings → General → Status bar metrics** and check CPU utilization,
-  RAM pressure, SSD usage, Claude's five-hour limit, ChatGPT's five-hour limit, or any combination.
-  AI values use compact `C` and `G` prefixes and show the percentage remaining. Selected readings
-  share the app's single clickable menu-bar item; uncheck all metrics to restore the
+  RAM pressure, SSD usage, Claude's five-hour limit, Codex's five-hour limit, or any combination.
+  AI values use the readable `Claude` and `Codex` labels and show the percentage remaining.
+  Selected readings share the app's single clickable menu-bar item; uncheck all metrics to restore the
   wrench-and-screwdriver icon.
 - **Monitor control:** click the menu bar icon for per-display brightness / contrast / volume
   sliders. Set per-display caps in **Settings → Displays**; each menu slider then greys out the
@@ -77,9 +77,9 @@ Apple Silicon, macOS 14+.
   "Auto-off in …" countdown; drag back to Off to stop. **Prevent all sleep** is the stronger,
   persistent system setting: enabling it warns that even closing a MacBook lid will not sleep the
   Mac, then asks for administrator approval. Turn it off to restore normal sleep.
-- **AI usage:** expand **AI Usage** immediately below Power. The collapsed row shows the lowest
-  remaining limit for Claude and ChatGPT; the expanded view shows every current usage window and
-  its reset countdown. Use the refresh button for an immediate update.
+- **AI usage:** expand **AI Usage** immediately below Power. The collapsed row shows the shared
+  weekly remaining limit for Claude and ChatGPT; the expanded view shows every current usage
+  window and its reset countdown. Use the refresh button for an immediate update.
 - **Brightness keys:** with Accessibility granted, press the hardware brightness keys while the
   pointer is over an external monitor to change *that* monitor (toggle in **Settings → General**).
 - **Desktop:** the menu's **Desktop** section toggles desktop icons and widgets (each briefly

@@ -40,8 +40,8 @@ struct StatusBarLabel: View {
         if showCPU { parts.append(metricText(value: monitor.cpuUsage)) }
         if showMemory { parts.append(metricText(value: monitor.pressureFraction)) }
         if showStorage { parts.append(metricText(value: monitor.diskUsage)) }
-        if showClaudeFiveHour { parts.append(aiMetricText(prefix: "C", provider: .claude)) }
-        if showChatGPTFiveHour { parts.append(aiMetricText(prefix: "G", provider: .chatGPT)) }
+        if showClaudeFiveHour { parts.append(aiMetricText(label: "Claude", provider: .claude)) }
+        if showChatGPTFiveHour { parts.append(aiMetricText(label: "Codex", provider: .chatGPT)) }
 
         guard let first = parts.first else { return Text("") }
         return parts.dropFirst().reduce(first) { $0 + Text("  ") + $1 }
@@ -51,8 +51,8 @@ struct StatusBarLabel: View {
         Text(percent(value))
     }
 
-    private func aiMetricText(prefix: String, provider: AIProviderID) -> Text {
-        Text("\(prefix) \(fiveHourPercent(for: provider))")
+    private func aiMetricText(label: String, provider: AIProviderID) -> Text {
+        Text("\(label) \(fiveHourPercent(for: provider))")
     }
 
     private var hasSelectedMetric: Bool {
@@ -76,7 +76,7 @@ struct StatusBarLabel: View {
             readings.append("Claude five-hour usage remaining \(fiveHourPercent(for: .claude))")
         }
         if showChatGPTFiveHour {
-            readings.append("ChatGPT five-hour usage remaining \(fiveHourPercent(for: .chatGPT))")
+            readings.append("Codex five-hour usage remaining \(fiveHourPercent(for: .chatGPT))")
         }
         return readings.joined(separator: ", ")
     }
