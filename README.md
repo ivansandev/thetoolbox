@@ -36,7 +36,14 @@ Apple Silicon, macOS 14+.
 - **Brightness sync** — make an external monitor follow the built-in display's brightness via a
   configurable linear mapping (its level at built-in 0% and at built-in 100%).
 - **Power (Caffeine)** — keep the Mac awake (prevent idle display sleep), so the screen stays lit
-  and the system keeps running.
+  and the system keeps running. A separate administrator-authorized **Prevent all sleep** toggle
+  applies macOS's system-wide `pmset disablesleep` setting, including lid-close sleep, with a
+  safety warning before it is enabled.
+- **AI subscription usage** — a compact disclosure directly after Power shows remaining Claude
+  and ChatGPT usage windows, reset times, and plan names. Claude uses the signed-in Claude Code
+  credential; ChatGPT limits come from the signed-in Codex CLI's supported app-server protocol.
+  Values refresh every five minutes, after wake, and when connectivity returns; saved values stay
+  visible and are clearly marked stale if a refresh fails.
 - **Brightness keys → display under the pointer** — the hardware brightness keys adjust
   whichever display the pointer is over (external monitors via DDC, with an on-screen overlay);
   the built-in display keeps its native behavior.
@@ -64,7 +71,12 @@ Apple Silicon, macOS 14+.
   left-side app strip unobstructed.
 - **Power:** the menu's **Power** section has a keep-awake **duration slider**
   (Off · 15m · 30m · 1h · 2h · 4h · ∞) — dragging right of Off starts keep-awake and shows a live
-  "Auto-off in …" countdown; drag back to Off to stop.
+  "Auto-off in …" countdown; drag back to Off to stop. **Prevent all sleep** is the stronger,
+  persistent system setting: enabling it warns that even closing a MacBook lid will not sleep the
+  Mac, then asks for administrator approval. Turn it off to restore normal sleep.
+- **AI usage:** expand **AI Usage** immediately below Power. The collapsed row shows the lowest
+  remaining limit for Claude and ChatGPT; the expanded view shows every current usage window and
+  its reset countdown. Use the refresh button for an immediate update.
 - **Brightness keys:** with Accessibility granted, press the hardware brightness keys while the
   pointer is over an external monitor to change *that* monitor (toggle in **Settings → General**).
 - **Desktop:** the menu's **Desktop** section toggles desktop icons and widgets (each briefly
@@ -74,6 +86,8 @@ Apple Silicon, macOS 14+.
 
 - **Apple Silicon** Mac (M-series) — the DDC path uses Apple-Silicon-only APIs.
 - **macOS 14 (Sonoma)** or later.
+- **AI usage (optional):** Claude Code signed in with a Claude subscription and/or the Codex CLI
+  signed in with ChatGPT. Each provider continues to work independently if the other is absent.
 - **Xcode 16+** and [XcodeGen](https://github.com/yonaskolb/XcodeGen) to build.
 
 There is no notarized download — **build from source**. A copied build is unsigned, so Gatekeeper
@@ -110,6 +124,12 @@ xcodebuild -scheme thetoolbox -configuration Debug build
   (System Settings → Privacy & Security → Accessibility). The app prompts on first use.
 - **Brightness-key routing** (to the display under the pointer) uses a session event tap, which
   also requires Accessibility.
+- **AI usage:** the Claude access token is requested from Claude Code's macOS Keychain item and is
+  held only in memory for the read-only usage request. ChatGPT usage is requested from
+  `codex app-server`; thetoolbox never reads Codex's authentication file. Cached data contains
+  only percentages, reset dates, plan labels, and refresh times.
+- **Prevent all sleep:** macOS shows its administrator authorization dialog when changing the
+  system-wide setting. thetoolbox never receives or stores the password.
 - **Private APIs:** thetoolbox calls private frameworks (`IOAVService`, `DisplayServices`) and
   installs a `CGEventTap`. It is **not App Store eligible** and is intended for personal/local use.
 - **Signing caveat:** the Accessibility grant is tied to the app's code signature. The default

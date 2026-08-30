@@ -39,6 +39,10 @@ struct MenuBarView: View {
 
             Divider()
 
+            AIUsageSection()
+
+            Divider()
+
             DesktopSection()
 
             Divider()
@@ -115,6 +119,7 @@ private struct WindowSection: View {
 /// Caffeine-style control: keep the Mac awake for a chosen duration.
 private struct PowerSection: View {
     @EnvironmentObject private var powerManager: PowerManager
+    @State private var showDisableSleepWarning = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -150,6 +155,52 @@ private struct PowerSection: View {
                         .frame(maxWidth: .infinity)
                 }
             }
+
+            Divider()
+
+            HStack {
+                Toggle("Prevent all sleep", isOn: Binding(
+                    get: { powerManager.systemSleepDisabled },
+                    set: { requested in
+                        if requested {
+                            showDisableSleepWarning = true
+                        } else {
+                            powerManager.setSystemSleepDisabled(false)
+                        }
+                    }
+                ))
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .disabled(powerManager.isChangingSystemSleep)
+                .help("System-wide sleep prevention, including lid-close sleep. Requires administrator approval.")
+
+                if powerManager.isChangingSystemSleep {
+                    ProgressView().controlSize(.mini)
+                }
+            }
+
+            if powerManager.systemSleepDisabled {
+                Label("Lid-close sleep is blocked", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+        }
+        .onAppear { powerManager.refreshSystemSleepState() }
+        .alert("Prevent All Mac Sleep?", isPresented: $showDisableSleepWarning) {
+            Button("Cancel", role: .cancel) {}
+            Button("Enable") {
+                powerManager.setSystemSleepDisabled(true)
+            }
+        } message: {
+            Text("This disables every form of system sleep. Closing a MacBook's lid will not put it to sleep: it will keep running, may become hot, and may drain its battery until you turn this option off.")
+        }
+        .alert("Sleep Setting Failed", isPresented: Binding(
+            get: { powerManager.systemSleepError != nil },
+            set: { if !$0 { powerManager.dismissSystemSleepError() } }
+        )) {
+            Button("OK") { powerManager.dismissSystemSleepError() }
+        } message: {
+            Text(powerManager.systemSleepError ?? "The sleep setting could not be changed.")
         }
     }
 

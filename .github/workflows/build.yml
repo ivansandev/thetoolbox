@@ -24,7 +24,7 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Build
+      - name: Build and test
         run: |
           xcodebuild \
             -project thetoolbox.xcodeproj \
@@ -32,4 +32,4 @@ jobs:
             -configuration Debug \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
-            build
+            test

@@ -42,6 +42,11 @@ final class PowerManager: ObservableObject {
     @Published private(set) var stop: KeepAwakeStop = .off
     /// When a timed auto-off is armed, the moment it fires; nil for `.off` and `.unlimited`.
     @Published private(set) var autoOffDeadline: Date?
+    /// Persistent system-wide `pmset disablesleep` state. Unlike the assertion above, this also
+    /// blocks explicit and lid-close sleep and survives app restarts.
+    @Published private(set) var systemSleepDisabled = false
+    @Published private(set) var isChangingSystemSleep = false
+    @Published private(set) var systemSleepError: String?
 
     var keepAwake: Bool { stop != .off }
 
@@ -49,12 +54,50 @@ final class PowerManager: ObservableObject {
     private var autoOffTimer: Timer?
 
     init() {
+        refreshSystemSleepState()
         #if DEBUG
         if ProcessInfo.processInfo.environment["THETOOLBOX_KEEPAWAKE_TEST"] == "1" {
             setStop(.h2)
             NSLog("thetoolbox keepAwake test: stop=\(stop) deadline=\(String(describing: autoOffDeadline)) remaining=\(autoOffRemainingText)")
         }
         #endif
+    }
+
+    /// Reads the kernel's effective state rather than trusting an app preference; the user may
+    /// also change this setting directly with `pmset` while the Toolbox is not running.
+    func refreshSystemSleepState() {
+        systemSleepDisabled = Self.readSystemSleepDisabled()
+    }
+
+    /// Applies the same system-wide setting as `sudo pmset -a disablesleep 1|0`. AppleScript's
+    /// administrator-privileges clause presents the standard macOS authorization dialog, so the
+    /// app never requests, receives, or stores an administrator password.
+    func setSystemSleepDisabled(_ disabled: Bool) {
+        guard !isChangingSystemSleep, disabled != systemSleepDisabled else { return }
+        isChangingSystemSleep = true
+        systemSleepError = nil
+
+        let value = disabled ? 1 : 0
+        let source = "do shell script \"/usr/bin/pmset -a disablesleep \(value)\" with administrator privileges"
+        var scriptError: NSDictionary?
+        _ = NSAppleScript(source: source)?.executeAndReturnError(&scriptError)
+
+        systemSleepDisabled = Self.readSystemSleepDisabled()
+        isChangingSystemSleep = false
+
+        guard systemSleepDisabled != disabled else { return }
+        let errorNumber = scriptError?[NSAppleScript.errorNumber] as? Int
+        if errorNumber == -128 {
+            // The user cancelled the administrator dialog; the unchanged toggle is enough.
+            return
+        }
+        systemSleepError = disabled
+            ? "The Mac could not be set to stay awake."
+            : "Normal Mac sleep could not be restored."
+    }
+
+    func dismissSystemSleepError() {
+        systemSleepError = nil
     }
 
     /// Picks a duration and (re)starts keep-awake, or stops it when `.off`.
@@ -118,6 +161,33 @@ final class PowerManager: ObservableObject {
             IOPMAssertionRelease(assertionID)
             assertionID = 0
         }
+    }
+
+    private static func readSystemSleepDisabled() -> Bool {
+        let process = Process()
+        let output = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/ioreg")
+        process.arguments = ["-r", "-c", "IOPMrootDomain", "-d", "1"]
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+            let data = output.fileHandleForReading.readDataToEndOfFile()
+            guard process.terminationStatus == 0,
+                  let text = String(data: data, encoding: .utf8) else { return false }
+            return parseSystemSleepDisabled(text)
+        } catch {
+            return false
+        }
+    }
+
+    static func parseSystemSleepDisabled(_ text: String) -> Bool {
+        text.range(
+            of: #""SleepDisabled"\s*=\s*(Yes|True|1)"#,
+            options: .regularExpression
+        ) != nil
     }
 
     deinit {

@@ -6,5 +6,9 @@
 	     an unsandboxed app. This is a personal, non-App-Store build. -->
 	<key>com.apple.security.app-sandbox</key>
 	<false/>
+	<!-- Required by the hardened release build so the user can explicitly authorize the
+	     AppleScript that applies the system-wide pmset disablesleep setting. -->
+	<key>com.apple.security.automation.apple-events</key>
+	<true/>
 </dict>
 </plist>

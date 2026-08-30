@@ -6,10 +6,10 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>thetoolbox</string>
-	<key>CFBundleIconFile</key>
-	<string>AppIcon.icns</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon.icns</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
@@ -26,6 +26,8 @@
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>thetoolbox uses administrator authorization only when you ask it to change the system-wide sleep setting.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string></string>
 </dict>

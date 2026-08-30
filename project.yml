@@ -17,7 +17,7 @@ packages:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.9.1"
+    MARKETING_VERSION: "0.10.0"
     CURRENT_PROJECT_VERSION: "1"
 
 targets:
@@ -31,6 +31,7 @@ targets:
     dependencies:
       - package: KeyboardShortcuts
         product: KeyboardShortcuts
+      - sdk: Security.framework
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ivansandev.thetoolbox
@@ -63,3 +64,26 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
         NSHumanReadableCopyright: ""
+        NSAppleEventsUsageDescription: "thetoolbox uses administrator authorization only when you ask it to change the system-wide sleep setting."
+
+  thetoolboxTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/thetoolboxTests
+    dependencies:
+      - target: thetoolbox
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ivansandev.thetoolbox.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  thetoolbox:
+    build:
+      targets:
+        thetoolbox: all
+        thetoolboxTests: [test]
+    test:
+      targets:
+        - thetoolboxTests
