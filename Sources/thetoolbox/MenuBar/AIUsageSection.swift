@@ -7,50 +7,66 @@ struct AIUsageSection: View {
     @State private var isExpanded = false
 
     var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            VStack(spacing: 8) {
-                ForEach(AIProviderID.allCases) { provider in
-                    AIProviderUsageCard(
-                        provider: provider,
-                        state: usageManager.states[provider] ?? .loading,
-                        refreshError: usageManager.refreshErrors[provider]
-                    )
+        VStack(spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isExpanded.toggle()
                 }
-
-                HStack {
-                    Text("Refreshes every 5 minutes")
-                        .font(.system(size: 9.5))
-                        .foregroundStyle(.tertiary)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    Text("AI Usage")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
                     Spacer()
-                    Button {
-                        Task { await usageManager.refresh() }
-                    } label: {
-                        if usageManager.isRefreshing {
-                            ProgressView()
-                                .controlSize(.mini)
-                        } else {
-                            Label("Refresh", systemImage: "arrow.clockwise")
-                                .labelStyle(.iconOnly)
-                        }
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Refresh AI usage")
-                    .disabled(usageManager.isRefreshing)
+                    Text("Claude \(usageManager.summary(for: .claude)) · ChatGPT \(usageManager.summary(for: .chatGPT))")
+                        .font(.system(size: 9.5))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .padding(.top, 8)
-        } label: {
-            HStack(spacing: 8) {
-                Text("AI Usage")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                Spacer()
-                Text("Claude \(usageManager.summary(for: .claude)) · ChatGPT \(usageManager.summary(for: .chatGPT))")
-                    .font(.system(size: 9.5))
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .help("Shared weekly limits remaining")
+            .buttonStyle(.plain)
+            .help(isExpanded ? "Collapse AI usage" : "Expand AI usage")
+            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+
+            if isExpanded {
+                VStack(spacing: 8) {
+                    ForEach(AIProviderID.allCases) { provider in
+                        AIProviderUsageCard(
+                            provider: provider,
+                            state: usageManager.states[provider] ?? .loading,
+                            refreshError: usageManager.refreshErrors[provider]
+                        )
+                    }
+
+                    HStack {
+                        Text("Refreshes every 5 minutes")
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.tertiary)
+                        Spacer()
+                        Button {
+                            Task { await usageManager.refresh() }
+                        } label: {
+                            if usageManager.isRefreshing {
+                                ProgressView()
+                                    .controlSize(.mini)
+                            } else {
+                                Label("Refresh", systemImage: "arrow.clockwise")
+                                    .labelStyle(.iconOnly)
+                            }
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Refresh AI usage")
+                        .disabled(usageManager.isRefreshing)
+                    }
+                }
+                .padding(.top, 8)
             }
         }
         .onAppear { usageManager.start() }
