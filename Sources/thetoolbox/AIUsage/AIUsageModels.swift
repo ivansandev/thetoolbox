@@ -99,14 +99,20 @@ enum AIUsageError: LocalizedError, Sendable {
     case incompatibleCLI(String)
     case invalidResponse(String)
     case requestFailed(String)
+    case rateLimited(String, retryAfter: Date)
     case timedOut(String)
+
+    var retryAfter: Date? {
+        if case let .rateLimited(_, retryAfter) = self { return retryAfter }
+        return nil
+    }
 
     var errorDescription: String? {
         switch self {
         case let .executableMissing(message), let .credentialsMissing(message),
              let .authenticationRequired(message), let .incompatibleCLI(message),
              let .invalidResponse(message), let .requestFailed(message),
-             let .timedOut(message):
+             let .rateLimited(message, _), let .timedOut(message):
             return message
         }
     }

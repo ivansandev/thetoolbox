@@ -1,3 +1,5 @@
+import Foundation
+import Network
 import XCTest
 @testable import thetoolbox
 
@@ -12,6 +14,48 @@ final class AIUsageResponseTests: XCTestCase {
         XCTAssertEqual(first.accessToken, "cached-token")
         XCTAssertEqual(second.accessToken, "cached-token")
         XCTAssertEqual(loader.readCount, 1)
+    }
+
+    func testClaudeCredentialCacheReloadsOnceAfterAuthenticationFailure() async throws {
+        let loader = ClaudeCredentialLoaderSpy(tokens: ["old-token", "rotated-token", "unused-token"])
+        let cache = ClaudeCredentialCache(loader: { try loader.read() })
+
+        let original = try await cache.read()
+        let refreshed = try await cache.read(refreshIfAllowed: true)
+        let stillRefreshed = try await cache.read(refreshIfAllowed: true)
+
+        XCTAssertEqual(original.accessToken, "old-token")
+        XCTAssertEqual(refreshed.accessToken, "rotated-token")
+        XCTAssertEqual(stillRefreshed.accessToken, "rotated-token")
+        XCTAssertEqual(loader.readCount, 2)
+    }
+
+    func testClaudeRetryAfterHeaderControlsCooldown() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let response = try XCTUnwrap(HTTPURLResponse(
+            url: URL(string: "https://api.anthropic.com/api/oauth/usage")!,
+            statusCode: 429,
+            httpVersion: nil,
+            headerFields: ["Retry-After": "120"]
+        ))
+
+        XCTAssertEqual(ClaudeUsageProvider.retryDate(from: response, now: now), now.addingTimeInterval(120))
+    }
+
+    func testNetworkRefreshOnlyRunsAfterConnectivityReturns() {
+        XCTAssertFalse(AIUsageManager.shouldRefreshAfterPathTransition(from: nil, to: .satisfied))
+        XCTAssertFalse(AIUsageManager.shouldRefreshAfterPathTransition(from: .satisfied, to: .satisfied))
+        XCTAssertFalse(AIUsageManager.shouldRefreshAfterPathTransition(from: .satisfied, to: .unsatisfied))
+        XCTAssertTrue(AIUsageManager.shouldRefreshAfterPathTransition(from: .unsatisfied, to: .satisfied))
+    }
+
+    func testOverlappingRefreshDoesNotQueueProviderAlreadyInFlight() {
+        let queued = AIUsageManager.providersToQueue(
+            requested: [.claude, .chatGPT],
+            currentlyRefreshing: [.claude]
+        )
+
+        XCTAssertEqual(queued, [.chatGPT])
     }
 
     func testClaudeDecodesCanonicalAndActiveScopedWindowsWithoutDuplicates() throws {
@@ -164,6 +208,11 @@ final class AIUsageResponseTests: XCTestCase {
 private final class ClaudeCredentialLoaderSpy: @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0
+    private let tokens: [String]
+
+    init(tokens: [String] = ["cached-token"]) {
+        self.tokens = tokens
+    }
 
     var readCount: Int {
         lock.lock()
@@ -173,8 +222,9 @@ private final class ClaudeCredentialLoaderSpy: @unchecked Sendable {
 
     func read() throws -> ClaudeCredential {
         lock.lock()
+        let token = tokens[min(count, tokens.count - 1)]
         count += 1
         lock.unlock()
-        return ClaudeCredential(accessToken: "cached-token", subscriptionType: "max")
+        return ClaudeCredential(accessToken: token, subscriptionType: "max")
     }
 }

@@ -12,7 +12,8 @@ struct AIUsageSection: View {
                 ForEach(AIProviderID.allCases) { provider in
                     AIProviderUsageCard(
                         provider: provider,
-                        state: usageManager.states[provider] ?? .loading
+                        state: usageManager.states[provider] ?? .loading,
+                        refreshError: usageManager.refreshErrors[provider]
                     )
                 }
 
@@ -59,6 +60,7 @@ struct AIUsageSection: View {
 private struct AIProviderUsageCard: View {
     let provider: AIProviderID
     let state: AIProviderAvailability
+    let refreshError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -91,8 +93,12 @@ private struct AIProviderUsageCard: View {
 
                 HStack {
                     if isStale {
-                        Label("Saved · refresh failed", systemImage: "exclamationmark.triangle.fill")
+                        Label(
+                            refreshError.map { "Saved · \($0)" } ?? "Saved usage",
+                            systemImage: refreshError == nil ? "clock" : "exclamationmark.triangle.fill"
+                        )
                             .foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
                     } else {
                         AIUsageUpdatedLabel(date: snapshot.fetchedAt)
                             .foregroundStyle(.tertiary)

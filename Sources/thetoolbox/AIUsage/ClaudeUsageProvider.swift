@@ -20,6 +20,25 @@ struct ClaudeUsageProvider: AIUsageProvider {
 
     func fetchUsage() async throws -> AIProviderSnapshot {
         let credential = try await credentialReader.read()
+        let (data, response) = try await requestUsage(using: credential)
+
+        if response.statusCode == 401 || response.statusCode == 403 {
+            // Claude Code rotates OAuth tokens while thetoolbox can stay open for days. Reload
+            // the Keychain item at most once per hour and retry only when the token changed.
+            let refreshedCredential = try await credentialReader.read(refreshIfAllowed: true)
+            guard refreshedCredential.accessToken != credential.accessToken else {
+                throw AIUsageError.authenticationRequired(
+                    "Claude Code login expired. Run `claude` and sign in again."
+                )
+            }
+            let (retryData, retryResponse) = try await requestUsage(using: refreshedCredential)
+            return try decode(data: retryData, response: retryResponse, credential: refreshedCredential)
+        }
+
+        return try decode(data: data, response: response, credential: credential)
+    }
+
+    private func requestUsage(using credential: ClaudeCredential) async throws -> (Data, HTTPURLResponse) {
         var request = URLRequest(url: endpoint)
         request.timeoutInterval = 15
         request.setValue("Bearer \(credential.accessToken)", forHTTPHeaderField: "Authorization")
@@ -36,11 +55,22 @@ struct ClaudeUsageProvider: AIUsageProvider {
         guard let http = response as? HTTPURLResponse else {
             throw AIUsageError.invalidResponse("Claude returned an invalid response.")
         }
+        return (data, http)
+    }
+
+    private func decode(
+        data: Data,
+        response http: HTTPURLResponse,
+        credential: ClaudeCredential
+    ) throws -> AIProviderSnapshot {
         if http.statusCode == 401 || http.statusCode == 403 {
             throw AIUsageError.authenticationRequired("Claude Code login expired. Run `claude` and sign in again.")
         }
         if http.statusCode == 429 {
-            throw AIUsageError.requestFailed("Claude usage is temporarily rate-limited.")
+            throw AIUsageError.rateLimited(
+                "Claude is rate-limited; retrying automatically.",
+                retryAfter: Self.retryDate(from: http)
+            )
         }
         guard (200..<300).contains(http.statusCode) else {
             throw AIUsageError.requestFailed("Claude usage request failed (HTTP \(http.statusCode)).")
@@ -64,6 +94,24 @@ struct ClaudeUsageProvider: AIUsageProvider {
             throw AIUsageError.invalidResponse("Claude usage data could not be decoded.")
         }
     }
+
+    static func retryDate(from response: HTTPURLResponse, now: Date = .now) -> Date {
+        if let value = response.value(forHTTPHeaderField: "Retry-After") {
+            if let seconds = TimeInterval(value.trimmingCharacters(in: .whitespaces)), seconds >= 0 {
+                return now.addingTimeInterval(seconds)
+            }
+
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+            formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+            if let date = formatter.date(from: value) { return max(date, now) }
+        }
+
+        // The internal endpoint does not always send Retry-After. A short cooldown prevents a
+        // reconnect/wake burst from extending the server-side throttle.
+        return now.addingTimeInterval(15 * 60)
+    }
 }
 
 struct ClaudeCredential: Sendable {
@@ -78,8 +126,8 @@ struct ClaudeCredentialReader: Sendable {
         self.cache = cache
     }
 
-    func read() async throws -> ClaudeCredential {
-        try await cache.read()
+    func read(refreshIfAllowed: Bool = false) async throws -> ClaudeCredential {
+        try await cache.read(refreshIfAllowed: refreshIfAllowed)
     }
 }
 
@@ -90,23 +138,39 @@ actor ClaudeCredentialCache {
     static let shared = ClaudeCredentialCache()
 
     typealias Loader = @Sendable () throws -> ClaudeCredential
+    typealias Clock = @Sendable () -> Date
 
     private let loader: Loader
+    private let now: Clock
     private var credential: ClaudeCredential?
+    private var nextCredentialReload = Date.distantPast
 
     init() {
         loader = { try ClaudeKeychainCredentialLoader.read() }
+        now = { .now }
     }
 
-    init(loader: @escaping Loader) {
+    init(loader: @escaping Loader, now: @escaping Clock = { .now }) {
         self.loader = loader
+        self.now = now
     }
 
-    func read() throws -> ClaudeCredential {
-        if let credential { return credential }
-        let credential = try loader()
-        self.credential = credential
-        return credential
+    func read(refreshIfAllowed: Bool = false) throws -> ClaudeCredential {
+        if !refreshIfAllowed, let credential { return credential }
+
+        let currentTime = now()
+        if refreshIfAllowed, let credential, currentTime < nextCredentialReload {
+            return credential
+        }
+
+        // Set the cooldown before touching Keychain, including when the user denies access. That
+        // keeps a failed refresh from causing the password dialog every five minutes.
+        if refreshIfAllowed {
+            nextCredentialReload = currentTime.addingTimeInterval(60 * 60)
+        }
+        let loadedCredential = try loader()
+        credential = loadedCredential
+        return loadedCredential
     }
 }
 

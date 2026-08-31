@@ -1,19 +1,25 @@
 import AppKit
 import Foundation
 import Network
+import OSLog
 
 @MainActor
 final class AIUsageManager: ObservableObject {
     @Published private(set) var states: [AIProviderID: AIProviderAvailability]
     @Published private(set) var isRefreshing = false
+    @Published private(set) var refreshErrors: [AIProviderID: String] = [:]
 
+    private static let logger = Logger(subsystem: "com.ivansandev.thetoolbox", category: "AIUsage")
     private let store: AIUsageSnapshotStore
     private var pathMonitor: NWPathMonitor?
+    private var lastPathStatus: NWPath.Status?
     private var hasStarted = false
     private var isEnabled = false
     private var lifecycleGeneration = 0
     private var requestedProviders: Set<AIProviderID> = []
     private var pendingProviders: Set<AIProviderID> = []
+    private var refreshingProviders: Set<AIProviderID> = []
+    private var retryAfter: [AIProviderID: Date] = [:]
     private var refreshLoop: Task<Void, Never>?
     private var wakeObserver: NSObjectProtocol?
 
@@ -54,8 +60,16 @@ final class AIUsageManager: ObservableObject {
         let pathMonitor = NWPathMonitor()
         self.pathMonitor = pathMonitor
         pathMonitor.pathUpdateHandler = { [weak self] path in
-            guard path.status == .satisfied else { return }
-            Task { @MainActor in await self?.refresh() }
+            let status = path.status
+            Task { @MainActor in
+                guard let self else { return }
+                let shouldRefresh = Self.shouldRefreshAfterPathTransition(
+                    from: self.lastPathStatus,
+                    to: status
+                )
+                self.lastPathStatus = status
+                if shouldRefresh { await self.refresh() }
+            }
         }
         pathMonitor.start(queue: DispatchQueue(label: "com.ivansandev.thetoolbox.ai-usage-network"))
 
@@ -78,6 +92,9 @@ final class AIUsageManager: ObservableObject {
         lifecycleGeneration += 1
         requestedProviders = []
         pendingProviders = []
+        refreshingProviders = []
+        retryAfter = [:]
+        lastPathStatus = nil
         refreshLoop?.cancel()
         refreshLoop = nil
         pathMonitor?.cancel()
@@ -105,22 +122,40 @@ final class AIUsageManager: ObservableObject {
     private func refresh(providers providerIDs: Set<AIProviderID>) async {
         guard isEnabled, !providerIDs.isEmpty else { return }
         if isRefreshing {
-            pendingProviders.formUnion(providerIDs)
+            // A wake, network event, timer, and button click can overlap. A provider already in
+            // the current request is fresh when that request completes, so do not immediately
+            // issue the same request again.
+            pendingProviders.formUnion(Self.providersToQueue(
+                requested: providerIDs,
+                currentlyRefreshing: refreshingProviders
+            ))
             return
         }
+
+        let initiallyEligible = eligibleProviders(from: providerIDs)
+        guard !initiallyEligible.isEmpty else { return }
         isRefreshing = true
         let generation = lifecycleGeneration
 
-        var providersToRefresh = providerIDs
+        var providersToRefresh = initiallyEligible
         while isEnabled, generation == lifecycleGeneration, !providersToRefresh.isEmpty {
+            refreshingProviders = providersToRefresh
             await fetch(providers: providersToRefresh, generation: generation)
-            providersToRefresh = pendingProviders
+            refreshingProviders = []
+            providersToRefresh = eligibleProviders(from: pendingProviders)
             pendingProviders = []
         }
 
         guard isEnabled, generation == lifecycleGeneration else { return }
         isRefreshing = false
         store.save(AIProviderID.allCases.compactMap { states[$0]?.snapshot })
+    }
+
+    private func eligibleProviders(from providers: Set<AIProviderID>, now: Date = .now) -> Set<AIProviderID> {
+        Set(providers.filter { provider in
+            guard let retryDate = retryAfter[provider] else { return true }
+            return retryDate <= now
+        })
     }
 
     private func fetch(providers providerIDs: Set<AIProviderID>, generation: Int) async {
@@ -142,12 +177,23 @@ final class AIUsageManager: ObservableObject {
                 guard isEnabled, generation == lifecycleGeneration else { continue }
                 switch result {
                 case let .success(snapshot):
+                    retryAfter[provider] = nil
+                    refreshErrors[provider] = nil
                     states[provider] = .available(snapshot, isStale: false)
                 case let .failure(error):
+                    let message = error.localizedDescription
+                    refreshErrors[provider] = message
+                    if let usageError = error as? AIUsageError,
+                       let retryDate = usageError.retryAfter {
+                        retryAfter[provider] = retryDate
+                    }
+                    Self.logger.error(
+                        "\(provider.rawValue, privacy: .public) refresh failed: \(message, privacy: .public)"
+                    )
                     if let previous = states[provider]?.snapshot {
                         states[provider] = .available(previous, isStale: true)
                     } else {
-                        states[provider] = .unavailable(error.localizedDescription)
+                        states[provider] = .unavailable(message)
                     }
                 }
             }
@@ -157,6 +203,23 @@ final class AIUsageManager: ObservableObject {
     func summary(for provider: AIProviderID) -> String {
         guard let window = states[provider]?.snapshot?.quickSummaryWindow else { return "—" }
         return "\(Int(window.remainingPercent.rounded()))%"
+    }
+
+    /// `NWPathMonitor` also publishes Wi-Fi quality and route updates while connectivity remains
+    /// satisfied. Only a genuine offline-to-online transition should bypass the regular timer.
+    nonisolated static func shouldRefreshAfterPathTransition(
+        from previous: NWPath.Status?,
+        to current: NWPath.Status
+    ) -> Bool {
+        guard previous != nil, current == .satisfied else { return false }
+        return previous != .satisfied
+    }
+
+    nonisolated static func providersToQueue(
+        requested: Set<AIProviderID>,
+        currentlyRefreshing: Set<AIProviderID>
+    ) -> Set<AIProviderID> {
+        requested.subtracting(currentlyRefreshing)
     }
 }
 
