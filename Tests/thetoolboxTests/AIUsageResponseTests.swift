@@ -4,9 +4,9 @@ import XCTest
 @testable import thetoolbox
 
 final class AIUsageResponseTests: XCTestCase {
-    func testClaudeCredentialCacheReadsKeychainLoaderOnlyOncePerAppSession() async throws {
+    func testClaudeCredentialCacheReusesTokenWithinReloadInterval() async throws {
         let loader = ClaudeCredentialLoaderSpy()
-        let cache = ClaudeCredentialCache(loader: { try loader.read() })
+        let cache = ClaudeCredentialCache(loader: { _ in try loader.read() })
 
         let first = try await cache.read()
         let second = try await cache.read()
@@ -16,9 +16,9 @@ final class AIUsageResponseTests: XCTestCase {
         XCTAssertEqual(loader.readCount, 1)
     }
 
-    func testClaudeCredentialCacheReloadsOnceAfterAuthenticationFailure() async throws {
+    func testClaudeCredentialCacheAdoptsSuccessiveRotationsWithoutAnHourLongCooldown() async throws {
         let loader = ClaudeCredentialLoaderSpy(tokens: ["old-token", "rotated-token", "unused-token"])
-        let cache = ClaudeCredentialCache(loader: { try loader.read() })
+        let cache = ClaudeCredentialCache(loader: { _ in try loader.read() })
 
         let original = try await cache.read()
         let refreshed = try await cache.read(refreshIfAllowed: true)
@@ -26,8 +26,8 @@ final class AIUsageResponseTests: XCTestCase {
 
         XCTAssertEqual(original.accessToken, "old-token")
         XCTAssertEqual(refreshed.accessToken, "rotated-token")
-        XCTAssertEqual(stillRefreshed.accessToken, "rotated-token")
-        XCTAssertEqual(loader.readCount, 2)
+        XCTAssertEqual(stillRefreshed.accessToken, "unused-token")
+        XCTAssertEqual(loader.readCount, 3)
     }
 
     func testClaudeRetryAfterHeaderControlsCooldown() throws {

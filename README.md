@@ -43,6 +43,10 @@ Apple Silicon, macOS 14+.
 - **AI subscription usage** — a compact disclosure directly after Power shows remaining Claude
   and ChatGPT usage windows, reset times, and plan names. Claude uses the signed-in Claude Code
   credential; ChatGPT limits come from the signed-in Codex CLI's supported app-server protocol.
+  Background credential reads never ask for a password. If macOS blocks Claude access, use
+  **Allow Claude Access…** in the expanded AI Usage section. **Refresh Claude Access…** renews
+  an expired session through Claude Code's local `/status` command, without submitting a model
+  prompt or requiring a new browser login when the CLI session can still be renewed.
   Values refresh every five minutes, after wake, and when connectivity returns; saved values stay
   visible and are clearly marked stale if a refresh fails. A master switch in **Settings → General**
   hides all AI usage UI and stops provider requests when the feature is not wanted.
@@ -129,11 +133,15 @@ xcodebuild -scheme thetoolbox -configuration Debug build
   (System Settings → Privacy & Security → Accessibility). The app prompts on first use.
 - **Brightness-key routing** (to the display under the pointer) uses a session event tap, which
   also requires Accessibility.
-- **AI usage:** the Claude access token is requested from Claude Code's macOS Keychain item once
-  per app session and held only in memory for read-only usage requests, avoiding a Keychain dialog
-  on every refresh. ChatGPT usage is requested from
-  `codex app-server`; thetoolbox never reads Codex's authentication file. Cached data contains
-  only percentages, reset dates, plan labels, and refresh times.
+- **AI usage:** Claude credentials are read noninteractively from Claude Code's credentials file
+  (when present) or its macOS Keychain item. Valid access tokens are cached in memory and, when
+  expiry metadata is available, in thetoolbox's own device-local Keychain item. The imported
+  token can be reused until expiry if macOS revokes access to Claude Code's item. Only an
+  explicit Claude access action can request Keychain authorization or launch Claude Code to
+  renew its session; thetoolbox never copies or consumes the CLI's rotating refresh token.
+  ChatGPT usage is requested from `codex app-server`; Codex manages credential storage and
+  token refresh. The usage snapshot file contains only percentages, reset dates, plan labels,
+  and refresh times. See [authentication notes](docs/ai-usage-authentication.md) for tradeoffs.
 - **Prevent all sleep:** macOS shows its administrator authorization dialog when changing the
   system-wide setting. thetoolbox never receives or stores the password.
 - **Private APIs:** thetoolbox calls private frameworks (`IOAVService`, `DisplayServices`) and

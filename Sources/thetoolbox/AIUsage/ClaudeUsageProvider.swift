@@ -1,5 +1,4 @@
 import Foundation
-import Security
 
 struct ClaudeUsageProvider: AIUsageProvider {
     let id = AIProviderID.claude
@@ -7,29 +6,50 @@ struct ClaudeUsageProvider: AIUsageProvider {
     private let credentialReader: ClaudeCredentialReader
     private let session: URLSession
     private let endpoint: URL
+    private let allowCredentialInteraction: Bool
+    private let refreshSession: @Sendable () async throws -> Void
 
     init(
         credentialReader: ClaudeCredentialReader = .init(),
         session: URLSession = .shared,
-        endpoint: URL = URL(string: "https://api.anthropic.com/api/oauth/usage?at_wall=1&skip_spend=1")!
+        endpoint: URL = URL(string: "https://api.anthropic.com/api/oauth/usage?at_wall=1&skip_spend=1")!,
+        allowCredentialInteraction: Bool = false,
+        refreshSession: @escaping @Sendable () async throws -> Void = { try await ClaudeSessionRefresher.refresh() }
     ) {
         self.credentialReader = credentialReader
         self.session = session
         self.endpoint = endpoint
+        self.allowCredentialInteraction = allowCredentialInteraction
+        self.refreshSession = refreshSession
     }
 
     func fetchUsage() async throws -> AIProviderSnapshot {
-        let credential = try await credentialReader.read()
+        var credential = try await credentialReader.read(allowUserInteraction: allowCredentialInteraction)
+        var didRefreshSession = false
+        if credential.isExpired() {
+            guard allowCredentialInteraction else { throw ClaudeCredential.expiredError }
+            try await refreshSession()
+            didRefreshSession = true
+            credential = try await credentialReader.read(refreshIfAllowed: true, allowUserInteraction: true)
+            guard !credential.isExpired() else { throw ClaudeCredential.expiredError }
+        }
+        try credential.validateUsageScope()
         let (data, response) = try await requestUsage(using: credential)
 
-        if response.statusCode == 401 || response.statusCode == 403 {
-            // Claude Code rotates OAuth tokens while thetoolbox can stay open for days. Reload
-            // the Keychain item at most once per hour and retry only when the token changed.
-            let refreshedCredential = try await credentialReader.read(refreshIfAllowed: true)
+        if response.statusCode == 401 {
+            // Only the owning CLI can refresh its rotating refresh token. Background checks
+            // can adopt its new access token, but must never launch an interactive CLI.
+            if allowCredentialInteraction, !didRefreshSession {
+                try await refreshSession()
+            }
+            let refreshedCredential = try await credentialReader.read(
+                refreshIfAllowed: true,
+                allowUserInteraction: allowCredentialInteraction
+            )
+            guard !refreshedCredential.isExpired() else { throw ClaudeCredential.expiredError }
+            try refreshedCredential.validateUsageScope()
             guard refreshedCredential.accessToken != credential.accessToken else {
-                throw AIUsageError.authenticationRequired(
-                    "Claude Code login expired. Run `claude` and sign in again."
-                )
+                throw Self.rejectedCredentialError
             }
             let (retryData, retryResponse) = try await requestUsage(using: refreshedCredential)
             return try decode(data: retryData, response: retryResponse, credential: refreshedCredential)
@@ -43,6 +63,7 @@ struct ClaudeUsageProvider: AIUsageProvider {
         request.timeoutInterval = 15
         request.setValue("Bearer \(credential.accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("thetoolbox/\(ToolboxBuildInfo.version)", forHTTPHeaderField: "User-Agent")
 
         let (data, response): (Data, URLResponse)
@@ -63,8 +84,15 @@ struct ClaudeUsageProvider: AIUsageProvider {
         response http: HTTPURLResponse,
         credential: ClaudeCredential
     ) throws -> AIProviderSnapshot {
-        if http.statusCode == 401 || http.statusCode == 403 {
-            throw AIUsageError.authenticationRequired("Claude Code login expired. Run `claude` and sign in again.")
+        if http.statusCode == 401 {
+            throw Self.rejectedCredentialError
+        }
+        if http.statusCode == 403 {
+            // Missing scopes and gateway/challenge failures do not mean the CLI is signed out.
+            if String(data: data, encoding: .utf8)?.contains("user:profile") == true {
+                throw ClaudeCredential.scopeError
+            }
+            throw AIUsageError.requestFailed("Claude denied the usage request (HTTP 403). Your CLI login may still be valid; try again later.")
         }
         if http.statusCode == 429 {
             throw AIUsageError.rateLimited(
@@ -95,6 +123,10 @@ struct ClaudeUsageProvider: AIUsageProvider {
         }
     }
 
+    private static var rejectedCredentialError: AIUsageError {
+        .authenticationRequired("Claude rejected the saved usage token. Use Refresh Claude Access to renew it through Claude Code.")
+    }
+
     static func retryDate(from response: HTTPURLResponse, now: Date = .now) -> Date {
         if let value = response.value(forHTTPHeaderField: "Retry-After") {
             if let seconds = TimeInterval(value.trimmingCharacters(in: .whitespaces)), seconds >= 0 {
@@ -111,100 +143,6 @@ struct ClaudeUsageProvider: AIUsageProvider {
         // The internal endpoint does not always send Retry-After. A short cooldown prevents a
         // reconnect/wake burst from extending the server-side throttle.
         return now.addingTimeInterval(15 * 60)
-    }
-}
-
-struct ClaudeCredential: Sendable {
-    let accessToken: String
-    let subscriptionType: String?
-}
-
-struct ClaudeCredentialReader: Sendable {
-    private let cache: ClaudeCredentialCache
-
-    init(cache: ClaudeCredentialCache = .shared) {
-        self.cache = cache
-    }
-
-    func read(refreshIfAllowed: Bool = false) async throws -> ClaudeCredential {
-        try await cache.read(refreshIfAllowed: refreshIfAllowed)
-    }
-}
-
-/// Claude Code owns this Keychain item. Reading it on every five-minute refresh can repeatedly
-/// trigger macOS's access dialog on machines where the item's ACL does not retain "Always Allow".
-/// Keep the decoded credential only in process memory so each app launch asks at most once.
-actor ClaudeCredentialCache {
-    static let shared = ClaudeCredentialCache()
-
-    typealias Loader = @Sendable () throws -> ClaudeCredential
-    typealias Clock = @Sendable () -> Date
-
-    private let loader: Loader
-    private let now: Clock
-    private var credential: ClaudeCredential?
-    private var nextCredentialReload = Date.distantPast
-
-    init() {
-        loader = { try ClaudeKeychainCredentialLoader.read() }
-        now = { .now }
-    }
-
-    init(loader: @escaping Loader, now: @escaping Clock = { .now }) {
-        self.loader = loader
-        self.now = now
-    }
-
-    func read(refreshIfAllowed: Bool = false) throws -> ClaudeCredential {
-        if !refreshIfAllowed, let credential { return credential }
-
-        let currentTime = now()
-        if refreshIfAllowed, let credential, currentTime < nextCredentialReload {
-            return credential
-        }
-
-        // Set the cooldown before touching Keychain, including when the user denies access. That
-        // keeps a failed refresh from causing the password dialog every five minutes.
-        if refreshIfAllowed {
-            nextCredentialReload = currentTime.addingTimeInterval(60 * 60)
-        }
-        let loadedCredential = try loader()
-        credential = loadedCredential
-        return loadedCredential
-    }
-}
-
-private enum ClaudeKeychainCredentialLoader {
-    static func read() throws -> ClaudeCredential {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "Claude Code-credentials",
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-
-        var result: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        guard status == errSecSuccess, let data = result as? Data else {
-            throw AIUsageError.credentialsMissing("Sign in to Claude Code to show usage.")
-        }
-
-        struct CredentialPayload: Decodable {
-            struct OAuth: Decodable {
-                let accessToken: String
-                let subscriptionType: String?
-            }
-
-            let claudeAiOauth: OAuth?
-            let oauthAccount: OAuth?
-        }
-
-        guard let payload = try? JSONDecoder().decode(CredentialPayload.self, from: data),
-              let oauth = payload.claudeAiOauth ?? payload.oauthAccount,
-              !oauth.accessToken.isEmpty else {
-            throw AIUsageError.credentialsMissing("Claude Code login could not be read.")
-        }
-        return ClaudeCredential(accessToken: oauth.accessToken, subscriptionType: oauth.subscriptionType)
     }
 }
 

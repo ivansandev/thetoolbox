@@ -43,6 +43,15 @@ struct AIUsageSection: View {
                             state: usageManager.states[provider] ?? .loading,
                             refreshError: usageManager.refreshErrors[provider]
                         )
+                        if provider == .claude, let action = usageManager.claudeAccessAction {
+                            Button(action) {
+                                Task { await usageManager.refreshClaudeAccess() }
+                            }
+                            .buttonStyle(.borderless)
+                            .font(.system(size: 10))
+                            .help("Authorize Claude usage access. macOS may request permission; automatic refreshes never request your password.")
+                            .disabled(usageManager.isRefreshing)
+                        }
                     }
 
                     HStack {

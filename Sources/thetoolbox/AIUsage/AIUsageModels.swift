@@ -95,6 +95,7 @@ enum AIProviderAvailability: Equatable, Sendable {
 enum AIUsageError: LocalizedError, Sendable {
     case executableMissing(String)
     case credentialsMissing(String)
+    case credentialAccessRequired(String)
     case authenticationRequired(String)
     case incompatibleCLI(String)
     case invalidResponse(String)
@@ -109,7 +110,7 @@ enum AIUsageError: LocalizedError, Sendable {
 
     var errorDescription: String? {
         switch self {
-        case let .executableMissing(message), let .credentialsMissing(message),
+        case let .executableMissing(message), let .credentialsMissing(message), let .credentialAccessRequired(message),
              let .authenticationRequired(message), let .incompatibleCLI(message),
              let .invalidResponse(message), let .requestFailed(message),
              let .rateLimited(message, _), let .timedOut(message):

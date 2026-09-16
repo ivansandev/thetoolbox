@@ -8,6 +8,7 @@ final class AIUsageManager: ObservableObject {
     @Published private(set) var states: [AIProviderID: AIProviderAvailability]
     @Published private(set) var isRefreshing = false
     @Published private(set) var refreshErrors: [AIProviderID: String] = [:]
+    @Published private(set) var claudeAccessAction: String?
 
     private static let logger = Logger(subsystem: "com.ivansandev.thetoolbox", category: "AIUsage")
     private let store: AIUsageSnapshotStore
@@ -119,7 +120,12 @@ final class AIUsageManager: ObservableObject {
         await refresh(providers: requestedProviders)
     }
 
-    private func refresh(providers providerIDs: Set<AIProviderID>) async {
+    func refreshClaudeAccess() async {
+        guard !isRefreshing else { return }
+        await refresh(providers: [.claude], allowClaudeInteraction: true)
+    }
+
+    private func refresh(providers providerIDs: Set<AIProviderID>, allowClaudeInteraction: Bool = false) async {
         guard isEnabled, !providerIDs.isEmpty else { return }
         if isRefreshing {
             // A wake, network event, timer, and button click can overlap. A provider already in
@@ -138,9 +144,12 @@ final class AIUsageManager: ObservableObject {
         let generation = lifecycleGeneration
 
         var providersToRefresh = initiallyEligible
+        var interactionAllowed = allowClaudeInteraction
         while isEnabled, generation == lifecycleGeneration, !providersToRefresh.isEmpty {
             refreshingProviders = providersToRefresh
-            await fetch(providers: providersToRefresh, generation: generation)
+            await fetch(providers: providersToRefresh, generation: generation, allowClaudeInteraction: interactionAllowed)
+            // Requests queued by timers, wake, or reconnect keep their background policy.
+            interactionAllowed = false
             refreshingProviders = []
             providersToRefresh = eligibleProviders(from: pendingProviders)
             pendingProviders = []
@@ -158,10 +167,10 @@ final class AIUsageManager: ObservableObject {
         })
     }
 
-    private func fetch(providers providerIDs: Set<AIProviderID>, generation: Int) async {
+    private func fetch(providers providerIDs: Set<AIProviderID>, generation: Int, allowClaudeInteraction: Bool) async {
         let providers: [any AIUsageProvider] = providerIDs.map { provider in
             switch provider {
-            case .claude: return ClaudeUsageProvider()
+            case .claude: return ClaudeUsageProvider(allowCredentialInteraction: allowClaudeInteraction)
             case .chatGPT: return ChatGPTUsageProvider()
             }
         }
@@ -177,10 +186,18 @@ final class AIUsageManager: ObservableObject {
                 guard isEnabled, generation == lifecycleGeneration else { continue }
                 switch result {
                 case let .success(snapshot):
+                    if provider == .claude { claudeAccessAction = nil }
                     retryAfter[provider] = nil
                     refreshErrors[provider] = nil
                     states[provider] = .available(snapshot, isStale: false)
                 case let .failure(error):
+                    if provider == .claude {
+                        switch error as? AIUsageError {
+                        case .credentialAccessRequired: claudeAccessAction = "Allow Claude Access…"
+                        case .authenticationRequired: claudeAccessAction = "Refresh Claude Access…"
+                        default: claudeAccessAction = nil
+                        }
+                    }
                     let message = error.localizedDescription
                     refreshErrors[provider] = message
                     if let usageError = error as? AIUsageError,
