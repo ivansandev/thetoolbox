@@ -93,11 +93,18 @@ Apple Silicon, macOS 14+.
 
 ## Requirements
 
+### macOS
+
 - **Apple Silicon** Mac (M-series) — the DDC path uses Apple-Silicon-only APIs.
 - **macOS 14 (Sonoma)** or later.
 - **AI usage (optional):** Claude Code signed in with a Claude subscription and/or the Codex CLI
   signed in with ChatGPT. Each provider continues to work independently if the other is absent.
 - **Xcode 16+** and [XcodeGen](https://github.com/yonaskolb/XcodeGen) to build.
+
+### Windows
+
+- **Windows 10/11** and **.NET 8 SDK**.
+- See [docs/WINDOWS.md](docs/WINDOWS.md) for build instructions and feature parity matrix.
 
 There is no notarized download — **build from source**. A copied build is unsigned, so Gatekeeper
 may refuse to open it; run it from Xcode, or right-click the `.app` → Open.
@@ -155,8 +162,9 @@ xcodebuild -scheme thetoolbox -configuration Debug build
 ## Layout
 
 - `project.yml` — XcodeGen spec (targets, SPM deps, Info.plist, entitlements).
-- `Sources/thetoolbox/` — app source, grouped by feature (`App`, `MenuBar`, `Displays`,
+- `Sources/thetoolbox/` — macOS app source, grouped by feature (`App`, `MenuBar`, `Displays`,
   `Windows`, `Settings`, `Shortcuts`, `Persistence`).
+- `platform/windows/` — Windows system-tray port (.NET 8 / WinForms).
 - Dependencies: [`AppleSiliconDDC`](https://github.com/waydabber/AppleSiliconDDC) (DDC over I2C),
   [`KeyboardShortcuts`](https://github.com/sindresorhus/KeyboardShortcuts) (global shortcuts).
 
