@@ -33,6 +33,7 @@ struct DisplaySettingsView: View {
                         if display.kind == .external && display.canBrightness && displayManager.hasBuiltInDisplay {
                             BrightnessSyncControls(display: display)
                         }
+                        ColorProfileControls(display: display)
                         if !display.canBrightness && !display.canContrast {
                             Text("No adjustable controls for this display.")
                                 .foregroundStyle(.secondary)
@@ -86,6 +87,44 @@ private struct BrightnessSyncControls: View {
                 set: { displayManager.setSyncRange(atMin: displayManager.syncRange(for: display).atMin, atMax: $0, for: display) }
             ))
         }
+    }
+}
+
+/// The monitor's own picture modes, read from its DDC capabilities. Collapsed by default — it's
+/// rarely changed — and absent when the monitor advertises none.
+private struct ColorProfileControls: View {
+    @EnvironmentObject private var displayManager: DisplayManager
+    @ObservedObject var display: ManagedDisplay
+    @State private var isExpanded = false
+
+    var body: some View {
+        if !display.colorProfiles.isEmpty {
+            DisclosureGroup("Color profile", isExpanded: $isExpanded) {
+                ForEach(display.colorProfiles) { options in
+                    Picker(options.feature.title, selection: Binding<UInt16?>(
+                        get: { options.current },
+                        set: { if let value = $0 { displayManager.setColorProfile(value, feature: options.feature, for: display) } }
+                    )) {
+                        if options.current == nil {
+                            Text("Unknown").tag(UInt16?.none)
+                        }
+                        ForEach(pickerValues(options), id: \.self) { value in
+                            Text(options.feature.name(for: value)).tag(UInt16?.some(value))
+                        }
+                    }
+                }
+            }
+            .onChange(of: isExpanded) { _, expanded in
+                // Pick up a mode changed with the monitor's own buttons.
+                if expanded { displayManager.refreshColorProfileSelection(for: display) }
+            }
+        }
+    }
+
+    /// The advertised values, plus the current one if the monitor is in a mode it didn't list.
+    private func pickerValues(_ options: ColorProfileOptions) -> [UInt16] {
+        guard let current = options.current, !options.values.contains(current) else { return options.values }
+        return options.values + [current]
     }
 }
 

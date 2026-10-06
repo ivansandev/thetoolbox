@@ -4,6 +4,7 @@ import Foundation
 enum VCPCode: UInt8 {
     case brightness = 0x10
     case contrast = 0x12
+    case colorPreset = 0x14
     case audioVolume = 0x62
     case audioMute = 0x8D
     case inputSource = 0x60
@@ -11,4 +12,5 @@ enum VCPCode: UInt8 {
     case greenGain = 0x18
     case blueGain = 0x1A
     case powerMode = 0xD6
+    case displayMode = 0xDC
 }

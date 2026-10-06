@@ -23,6 +23,10 @@ final class ManagedDisplay: ObservableObject, Identifiable {
     /// brightness can't be read). Estimated from the brightness slider position — see `BuiltInDisplaySpecs`.
     @Published var nits: Double? = nil
 
+    /// Color-profile features the monitor advertises over DDC (external displays only; empty
+    /// until its capabilities have been read, or when it advertises none).
+    @Published var colorProfiles: [ColorProfileOptions] = []
+
     init(id: CGDirectDisplayID, key: String, name: String, kind: Kind,
          canBrightness: Bool, canContrast: Bool, canVolume: Bool,
          brightnessUI: Double, contrastUI: Double, volumeUI: Double) {

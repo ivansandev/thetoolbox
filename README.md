@@ -23,7 +23,9 @@ Apple Silicon, macOS 14+.
 - **Monitor control** — brightness / contrast / volume for external monitors over DDC/CI,
   plus built-in display brightness. Each display+control supports a **max cap**: the menu slider
   shows the panel's real %, the thumb stops at the cap, and the over-cap range is greyed out
-  (e.g. cap Dell contrast at 75% to avoid washout).
+  (e.g. cap Dell contrast at 75% to avoid washout). It also reads which **color profiles** a
+  monitor supports (preset modes such as Standard / Movie / Game, and color presets such as
+  6500 K) and lets you switch between them.
 - **Window management** — move/resize the frontmost window via global keyboard shortcuts,
   including user-defined **custom sizes and positions** (e.g. "top-right 40% × 50%"), ideal for
   4K screens. Each shortcut is unique — reassigning a combo moves it off whatever had it.
@@ -66,6 +68,8 @@ Apple Silicon, macOS 14+.
 - **Monitor control:** click the menu bar icon for per-display brightness / contrast / volume
   sliders. Set per-display caps in **Settings → Displays**; each menu slider then greys out the
   range above the cap and the thumb won't go past it (e.g. cap a Dell's contrast at 75%).
+- **Color profiles:** in **Settings → Displays**, expand "Color profile" under an external monitor
+  to pick its preset mode or color preset. Only the modes the monitor itself advertises are listed.
 - **Brightness sync:** in **Settings → Displays**, turn on "Follow built-in brightness" for an
   external monitor and set the mapping endpoints; its brightness then tracks the built-in (and
   its menu slider shows a link icon and is disabled).

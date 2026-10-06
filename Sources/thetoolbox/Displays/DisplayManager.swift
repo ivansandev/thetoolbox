@@ -14,6 +14,10 @@ final class DisplayManager: ObservableObject {
     private let brightnessKeyTap = BrightnessKeyTap()
     private let prefs = Preferences.shared
     private var maxValues: [CGDirectDisplayID: [VCPCode: UInt16]] = [:]
+    /// Color-profile options per display key. Kept across `refresh()` (which rebuilds the
+    /// display objects) so the slow capabilities read happens once per monitor, not per hot-plug.
+    private var colorProfileCache: [String: [ColorProfileOptions]] = [:]
+    private var colorProfileLoads: Set<String> = []
     private var screenObserver: NSObjectProtocol?
     private var syncTimer: Timer?
     private var lastBuiltInBrightness: Double = -1
@@ -95,6 +99,11 @@ final class DisplayManager: ObservableObject {
                     // above the configured safe maximum.
                     applyBrightness(display)
                     applyContrast(display)
+                    if let cached = colorProfileCache[key] {
+                        display.colorProfiles = cached
+                    } else {
+                        loadColorProfiles(for: display)
+                    }
                 }
             }
         }
@@ -146,6 +155,88 @@ final class DisplayManager: ObservableObject {
         display.contrastUI = CapScaling.clamped(display.contrastUI, to: cap)
         objectWillChange.send()
         applyContrast(display)
+    }
+
+    // MARK: Color profiles (from Settings)
+
+    func setColorProfile(_ value: UInt16, feature: ColorProfileFeature, for display: ManagedDisplay) {
+        guard var options = colorProfileCache[display.key],
+              let index = options.firstIndex(where: { $0.feature == feature }) else { return }
+        options[index].current = value
+        publishColorProfiles(options, forKey: display.key)
+
+        let code = feature.code.rawValue
+        updateColorProfileSelection(for: display, jobKey: "\(display.id).\(code)") { service in
+            _ = AppleSiliconDDC.write(service: service, command: code, value: value)
+            usleep(500_000)   // let the monitor finish switching before reading back
+        }
+    }
+
+    /// Re-reads the current selection of each color-profile feature, e.g. to pick up a change
+    /// made with the monitor's own buttons.
+    func refreshColorProfileSelection(for display: ManagedDisplay) {
+        updateColorProfileSelection(for: display, jobKey: "\(display.id).colorprofiles") { _ in }
+    }
+
+    /// Runs `work` on the hardware queue, then reads every feature's selection back. Monitors
+    /// couple these features (on Dell, picking a color preset resets the preset mode and vice
+    /// versa), so after a write all of them are re-read rather than trusting the value sent.
+    private func updateColorProfileSelection(for display: ManagedDisplay, jobKey: String,
+                                             after work: @escaping (IOAVService) -> Void) {
+        guard let service = ddc.service(for: display.id) else { return }
+        let key = display.key
+        let features = display.colorProfiles.map(\.feature)
+        guard !features.isEmpty else { return }
+        coalescer.submit(key: jobKey) { [weak self] in
+            work(service)
+            let current = Self.readColorProfileSelection(features, service: service)
+            DispatchQueue.main.async {
+                guard let self, var options = self.colorProfileCache[key] else { return }
+                for index in options.indices {
+                    if let value = current[options[index].feature] { options[index].current = value }
+                }
+                self.publishColorProfiles(options, forKey: key)
+            }
+        }
+    }
+
+    /// Asks the monitor which color-profile values it supports (its DDC capabilities string).
+    private func loadColorProfiles(for display: ManagedDisplay) {
+        guard let service = ddc.service(for: display.id) else { return }
+        let key = display.key
+        guard colorProfileLoads.insert(key).inserted else { return }
+        coalescer.submit(key: "\(display.id).capabilities") { [weak self] in
+            var options: [ColorProfileOptions]?
+            if let capabilities = DDCCapabilities.read(service: service) {
+                let features = ColorProfileFeature.allCases.filter { !capabilities.values(for: $0.code).isEmpty }
+                let current = Self.readColorProfileSelection(features, service: service)
+                options = features.map {
+                    ColorProfileOptions(feature: $0, values: capabilities.values(for: $0.code), current: current[$0])
+                }
+            }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.colorProfileLoads.remove(key)
+                // No answer: leave it uncached so the next refresh tries again.
+                if let options { self.publishColorProfiles(options, forKey: key) }
+            }
+        }
+    }
+
+    private func publishColorProfiles(_ options: [ColorProfileOptions], forKey key: String) {
+        colorProfileCache[key] = options
+        displays.first { $0.key == key }?.colorProfiles = options
+    }
+
+    private static func readColorProfileSelection(_ features: [ColorProfileFeature],
+                                                  service: IOAVService) -> [ColorProfileFeature: UInt16] {
+        var current: [ColorProfileFeature: UInt16] = [:]
+        for feature in features {
+            if let reply = AppleSiliconDDC.read(service: service, command: feature.code.rawValue) {
+                current[feature] = reply.current & 0xFF   // the value is the low byte; the high byte is unspecified
+            }
+        }
+        return current
     }
 
     // MARK: Brightness sync (built-in -> external)
