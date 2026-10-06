@@ -109,7 +109,8 @@ private struct ColorProfileControls: View {
                             Text("Unknown").tag(UInt16?.none)
                         }
                         ForEach(pickerValues(options), id: \.self) { value in
-                            Text(options.feature.name(for: value)).tag(UInt16?.some(value))
+                            Text(options.feature.name(for: value, vendorID: CGDisplayVendorNumber(display.id)))
+                                .tag(UInt16?.some(value))
                         }
                     }
                 }

@@ -80,4 +80,15 @@ final class DDCCapabilitiesTests: XCTestCase {
         XCTAssertEqual(ColorProfileFeature.colorPreset.name(for: 0x05), "6500 K")
         XCTAssertEqual(ColorProfileFeature.colorPreset.name(for: 0x7F), "Preset 0x7F")
     }
+
+    func testDellMonitorsUseTheirOnScreenMenuNamesForColorPresets() {
+        let dell = ColorProfileFeature.dellVendorID
+        let names = [0x05, 0x08, 0x0B, 0x0C].map { ColorProfileFeature.colorPreset.name(for: $0, vendorID: dell) }
+
+        XCTAssertEqual(names, ["Warm", "Cool", "Custom Color", "Standard"])
+        // Values Dell's menu has no special name for, and other features, keep the MCCS names.
+        XCTAssertEqual(ColorProfileFeature.colorPreset.name(for: 0x01, vendorID: dell), "sRGB")
+        XCTAssertEqual(ColorProfileFeature.presetMode.name(for: 0x05, vendorID: dell), "Game")
+        XCTAssertEqual(ColorProfileFeature.colorPreset.name(for: 0x05, vendorID: 0x1E6D), "6500 K")
+    }
 }

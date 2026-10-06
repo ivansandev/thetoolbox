@@ -20,8 +20,16 @@ enum ColorProfileFeature: CaseIterable {
         }
     }
 
-    /// MCCS names for the standard values; anything else shows its raw value.
-    func name(for value: UInt16) -> String {
+    /// EDID manufacturer ID "DEL", as reported by `CGDisplayVendorNumber`.
+    static let dellVendorID: UInt32 = 0x10AC
+
+    /// MCCS names for the standard values; anything else shows its raw value. Dell monitors
+    /// get the names their on-screen menu uses for the color presets instead.
+    func name(for value: UInt16, vendorID: UInt32? = nil) -> String {
+        if self == .colorPreset, vendorID == Self.dellVendorID,
+           let name = [0x05: "Warm", 0x08: "Cool", 0x0B: "Custom Color", 0x0C: "Standard"][value] {
+            return name
+        }
         let names: [UInt16: String]
         switch self {
         case .presetMode:
