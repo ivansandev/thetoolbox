@@ -10,6 +10,7 @@ enum PreferenceKey {
     static let presentationModeActive = "presentationModeActive.v1"
     static let presentationModeSnapshot = "presentationModeSnapshot.v1"
     static let leaveRoomForStageManager = "leaveRoomForStageManager.v1"
+    static let instantSpaceSwipes = "instantSpaceSwipes.v1"
 }
 
 /// Persisted per-display settings. Keyed by the display's stable UUID so they survive
@@ -103,5 +104,12 @@ final class Preferences {
     var leaveRoomForStageManager: Bool {
         get { defaults.bool(forKey: PreferenceKey.leaveRoomForStageManager) }
         set { defaults.set(newValue, forKey: PreferenceKey.leaveRoomForStageManager) }
+    }
+
+    // MARK: Spaces
+
+    var instantSpaceSwipes: Bool {
+        get { defaults.bool(forKey: PreferenceKey.instantSpaceSwipes) }
+        set { defaults.set(newValue, forKey: PreferenceKey.instantSpaceSwipes) }
     }
 }

@@ -36,6 +36,11 @@ Apple Silicon, macOS 14+.
   comfortable centered size on large/high-res ones. **Move to display** keeps the window's
   position and size relative to the new screen. An optional **Leave room for recent apps**
   setting keeps managed windows clear of Stage Manager's left-side app strip.
+- **Instant space switching** — switch between macOS spaces (desktops) with no slide
+  animation, adapted from [InstantSpaceSwitcher](https://github.com/jurplel/InstantSpaceSwitcher).
+  ⌃← / ⌃→ move to the previous/next space and ⌃1…⌃0 jump straight to spaces 1–10 (spaces 11–16
+  can have shortcuts too). An optional **Instant trackpad swipes** setting makes your own
+  three/four-finger swipes skip the animation as well. Works with SIP on and uses native spaces.
 - **Brightness sync** — make an external monitor follow the built-in display's brightness via a
   configurable linear mapping (its level at built-in 0% and at built-in 100%).
 - **Power (Caffeine)** — keep the Mac awake (prevent idle display sleep), so the screen stays lit
@@ -81,6 +86,11 @@ Apple Silicon, macOS 14+.
   action triggers the Accessibility prompt — grant it once. DDC monitor control needs no
   permission. If you use Stage Manager, enable **Leave room for recent apps** there to keep its
   left-side app strip unobstructed.
+- **Spaces:** press ⌃← / ⌃→ to move one space left/right, or ⌃ + a number to jump to that
+  space. macOS uses ⌃← / ⌃→ for its own (animated) switching and takes priority, so
+  **Settings → Spaces** shows a warning with a **Turn Off in macOS** button when any of your
+  space shortcuts clash with an enabled macOS shortcut. All shortcuts are editable there, along
+  with **Instant trackpad swipes**. Needs Accessibility, like window management.
 - **Power:** the menu's **Power** section has a keep-awake **duration slider**
   (Off · 15m · 30m · 1h · 2h · 4h · ∞) — dragging right of Off starts keep-awake and shows a live
   "Auto-off in …" countdown; drag back to Off to stop. **Prevent all sleep** is the stronger,
@@ -135,6 +145,9 @@ xcodebuild -scheme thetoolbox -configuration Debug build
 - **DDC monitor control** needs no special permission on Apple Silicon.
 - **Window management** needs **Accessibility** permission
   (System Settings → Privacy & Security → Accessibility). The app prompts on first use.
+- **Space switching** posts a synthetic trackpad swipe and (for instant swipes) uses a session
+  event tap on gesture events — both require Accessibility. **Turn Off in macOS** edits
+  `com.apple.symbolichotkeys`, the same setting as System Settings → Keyboard → Keyboard Shortcuts.
 - **Brightness-key routing** (to the display under the pointer) uses a session event tap, which
   also requires Accessibility.
 - **AI usage:** Claude credentials are read noninteractively from Claude Code's credentials file
@@ -160,8 +173,9 @@ xcodebuild -scheme thetoolbox -configuration Debug build
 
 - `project.yml` — XcodeGen spec (targets, SPM deps, Info.plist, entitlements).
 - `Sources/thetoolbox/` — app source, grouped by feature (`App`, `MenuBar`, `Displays`,
-  `Windows`, `Settings`, `Shortcuts`, `Persistence`).
+  `Windows`, `Spaces`, `Settings`, `Shortcuts`, `Persistence`).
 - Dependencies: [`AppleSiliconDDC`](https://github.com/waydabber/AppleSiliconDDC) (DDC over I2C),
+  [`InstantSpaceSwitcher`](https://github.com/jurplel/InstantSpaceSwitcher) (instant space switching core),
   [`KeyboardShortcuts`](https://github.com/sindresorhus/KeyboardShortcuts) (global shortcuts).
 
 ## Contributing
@@ -173,4 +187,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) — in short: edit `project.yml` (not the
 
 [MIT](LICENSE) © 2026 Ivan Sandev. Third-party components and their licenses are listed in
 [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md) — the vendored AppleSiliconDDC is MIT © Istvan T.,
-and KeyboardShortcuts is MIT © Sindre Sorhus.
+the vendored InstantSpaceSwitcher core is MIT © jurplel, and KeyboardShortcuts is MIT © Sindre Sorhus.

@@ -18,4 +18,8 @@ extern IOReturn IOAVServiceReadI2C(IOAVService service, uint32_t chipAddress, ui
 extern IOReturn IOAVServiceWriteI2C(IOAVService service, uint32_t chipAddress, uint32_t dataAddress, void* inputBuffer, uint32_t inputBufferSize);
 extern CFDictionaryRef CoreDisplay_DisplayCreateInfoDictionary(CGDirectDisplayID);
 
+// Instant space switching core, vendored from jurplel/InstantSpaceSwitcher. This is the
+// target's only bridging header, so it's imported here too.
+#import "../InstantSpaceSwitcher/include/ISS.h"
+
 #endif /* THETOOLBOX_APPLESILICONDDC_BRIDGING_H */

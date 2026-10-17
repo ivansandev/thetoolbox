@@ -5,6 +5,7 @@ struct ToolboxApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var displayManager = DisplayManager()
     @StateObject private var windowManager = WindowManager()
+    @StateObject private var spaceSwitcher = SpaceSwitcher()
     @StateObject private var powerManager = PowerManager()
     @StateObject private var presentationModeManager = PresentationModeManager()
     @StateObject private var systemMonitor = SystemMonitor()
@@ -18,6 +19,7 @@ struct ToolboxApp: App {
             MenuBarView()
                 .environmentObject(displayManager)
                 .environmentObject(windowManager)
+                .environmentObject(spaceSwitcher)
                 .environmentObject(powerManager)
                 .environmentObject(presentationModeManager)
                 .environmentObject(systemMonitor)
@@ -32,6 +34,7 @@ struct ToolboxApp: App {
             SettingsView()
                 .environmentObject(displayManager)
                 .environmentObject(windowManager)
+                .environmentObject(spaceSwitcher)
                 .environmentObject(powerManager)
                 .environmentObject(presentationModeManager)
         }

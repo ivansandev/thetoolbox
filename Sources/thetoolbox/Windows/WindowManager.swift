@@ -265,22 +265,17 @@ final class WindowManager: ObservableObject {
 
     // MARK: Shortcut conflicts
 
-    /// All shortcut names this app manages (built-in actions + one per custom size).
+    /// All window shortcut names (built-in actions + one per custom size).
     var allShortcutNames: [KeyboardShortcuts.Name] {
-        let builtins: [KeyboardShortcuts.Name] = [
-            .windowLeftHalf, .windowRightHalf, .windowTopHalf,
-            .windowBottomHalf, .windowMaximize, .windowCenter, .windowCenterFit,
-            .windowDisplayLeft, .windowDisplayRight,
-        ]
-        return builtins + customSizes.map { Self.shortcutName(for: $0.id) }
+        KeyboardShortcuts.Name.windowShortcuts + customSizes.map { Self.shortcutName(for: $0.id) }
     }
 
-    /// When `name` is assigned a shortcut, clear that same combo from any of our other actions so
-    /// each shortcut maps to exactly one action (most recently assigned wins). The cleared
-    /// recorders update themselves via KeyboardShortcuts' change notification.
+    /// When `name` is assigned a shortcut, clear that same combo from any of our other actions
+    /// (windows and spaces) so each shortcut maps to exactly one action (most recently assigned
+    /// wins). The cleared recorders update themselves via KeyboardShortcuts' change notification.
     func resolveShortcutConflict(preferring name: KeyboardShortcuts.Name) {
         guard let shortcut = KeyboardShortcuts.getShortcut(for: name) else { return }
-        for other in allShortcutNames where other != name {
+        for other in allShortcutNames + KeyboardShortcuts.Name.spaceShortcuts where other != name {
             if KeyboardShortcuts.getShortcut(for: other) == shortcut {
                 KeyboardShortcuts.setShortcut(nil, for: other)
             }

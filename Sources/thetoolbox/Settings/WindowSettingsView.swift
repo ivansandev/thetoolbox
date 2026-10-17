@@ -3,22 +3,11 @@ import SwiftUI
 
 struct WindowSettingsView: View {
     @EnvironmentObject private var windowManager: WindowManager
-    @State private var accessibilityGranted = AccessibilityPermission.isGranted
 
     var body: some View {
         Form {
             Section("Permission") {
-                HStack(spacing: 8) {
-                    Image(systemName: accessibilityGranted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                        .foregroundStyle(accessibilityGranted ? Color.statusGreen : Color.orange)
-                    Text(accessibilityGranted
-                         ? "Accessibility access granted."
-                         : "Accessibility access is required to move windows.")
-                    Spacer()
-                    if !accessibilityGranted {
-                        Button("Grant…") { AccessibilityPermission.prompt() }
-                    }
-                }
+                AccessibilityStatusRow(purpose: "move windows")
             }
 
             Section("Stage Manager") {
@@ -53,9 +42,6 @@ struct WindowSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            accessibilityGranted = AccessibilityPermission.isGranted
-        }
     }
 
     private func shortcutRow(_ title: String, _ name: KeyboardShortcuts.Name) -> some View {

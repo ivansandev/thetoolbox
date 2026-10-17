@@ -9,6 +9,8 @@ struct SettingsView: View {
                 .tabItem { Label("Displays", systemImage: "display") }
             WindowSettingsView()
                 .tabItem { Label("Windows", systemImage: "macwindow") }
+            SpacesSettingsView()
+                .tabItem { Label("Spaces", systemImage: "rectangle.split.3x1") }
         }
         .frame(width: 520, height: 420)
     }

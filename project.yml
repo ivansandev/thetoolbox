@@ -17,7 +17,7 @@ packages:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.11.1"
+    MARKETING_VERSION: "0.12.0"
     CURRENT_PROJECT_VERSION: "1"
 
 targets:
@@ -47,12 +47,16 @@ targets:
         COMBINE_HIDPI_IMAGES: YES
         # Vendored AppleSiliconDDC: bridging header declares the private IOAVService C API;
         # CoreDisplay provides those symbols, IOKit provides the registry symbols.
+        # Vendored InstantSpaceSwitcher: ApplicationServices provides the CGEvent and private
+        # CGS (spaces) symbols its C core uses.
         SWIFT_OBJC_BRIDGING_HEADER: Sources/thetoolbox/Vendor/AppleSiliconDDC/AppleSiliconDDC-Bridging.h
         OTHER_LDFLAGS:
           - "-framework"
           - "CoreDisplay"
           - "-framework"
           - "IOKit"
+          - "-framework"
+          - "ApplicationServices"
     info:
       path: Resources/Info.plist
       properties:
