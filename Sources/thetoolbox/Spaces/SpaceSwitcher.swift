@@ -16,17 +16,40 @@ final class SpaceSwitcher: ObservableObject {
         }
     }
 
+    private enum Action {
+        case previous, next, space(Int)
+    }
+
+    /// A key code plus ⌃⌥⇧⌘ flags, comparable between a recorded shortcut and a live key event.
+    private struct KeyCombo: Hashable {
+        let keyCode: Int
+        let modifiers: UInt
+
+        init(keyCode: Int, modifiers: NSEvent.ModifierFlags) {
+            self.keyCode = keyCode
+            self.modifiers = modifiers.intersection([.control, .option, .shift, .command]).rawValue
+        }
+    }
+
     private let prefs = Preferences.shared
-    private var coreRetryTimer: Timer?
+    private let keyTap = KeyDownTap()
+    private var actions: [KeyCombo: Action] = [:]
+    private var startRetryTimer: Timer?
 
     init() {
         instantSwipes = prefs.instantSpaceSwipes
         seedDefaultsIfNeeded()
-        startCore()
+        reloadShortcuts()
+        keyTap.handler = { [weak self] event in self?.handleKeyDown(event) ?? false }
+        start()
         // Lets real swipes pass through untouched while App Exposé is open.
         iss_set_overlay_detection_enabled(true)
         iss_set_swipe_override(instantSwipes)
-        registerShortcuts()
+
+        // Shortcuts are stored in UserDefaults by KeyboardShortcuts; re-read them when they change.
+        NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.reloadShortcuts() }
         // Drop the core's predicted position once the space changes by other means.
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
@@ -59,58 +82,71 @@ final class SpaceSwitcher: ObservableObject {
         }
     }
 
-    /// The core's event tap (needed for instant swipes) requires Accessibility. Until it's
-    /// granted, retry quietly so swipes start working as soon as it is.
-    private func startCore() {
-        guard !Self.startCoreIfPermitted() else { return }
-        coreRetryTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] timer in
-            guard Self.startCoreIfPermitted() else { return }
+    // MARK: Startup
+
+    /// The key tap and the core's gesture tap both need Accessibility. Until it's granted, retry
+    /// quietly so shortcuts and swipes start working as soon as it is.
+    private func start() {
+        guard !startIfPermitted() else { return }
+        startRetryTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] timer in
+            guard let self, self.startIfPermitted() else { return }
             timer.invalidate()
-            self?.coreRetryTimer = nil
+            self.startRetryTimer = nil
         }
     }
 
-    /// `iss_init` is idempotent: once its event tap exists it returns true immediately.
-    private static func startCoreIfPermitted() -> Bool {
-        AccessibilityPermission.isGranted && iss_init()
+    /// Both taps are idempotent: once running, starting again returns true immediately.
+    private func startIfPermitted() -> Bool {
+        guard AccessibilityPermission.isGranted else { return false }
+        let keysStarted = keyTap.start()
+        return iss_init() && keysStarted
     }
 
-    private func registerShortcuts() {
-        KeyboardShortcuts.onKeyDown(for: .spacePrevious) { [weak self] in
-            self?.perform { iss_switch(ISSDirectionLeft) }
+    // MARK: Shortcuts
+
+    private func reloadShortcuts() {
+        var table: [KeyCombo: Action] = [:]
+        func add(_ name: KeyboardShortcuts.Name, _ action: Action) {
+            guard let shortcut = KeyboardShortcuts.getShortcut(for: name) else { return }
+            table[KeyCombo(keyCode: shortcut.carbonKeyCode, modifiers: shortcut.modifiers)] = action
         }
-        KeyboardShortcuts.onKeyDown(for: .spaceNext) { [weak self] in
-            self?.perform { iss_switch(ISSDirectionRight) }
-        }
+        add(.spacePrevious, .previous)
+        add(.spaceNext, .next)
         for number in 1 ... Self.maxSpaces {
-            KeyboardShortcuts.onKeyDown(for: .switchToSpace(number)) { [weak self] in
-                self?.perform { iss_switch_to_index(UInt32(number - 1)) }
-            }
+            add(.switchToSpace(number), .space(number))
         }
+        actions = table
+    }
+
+    /// Runs on the main thread for every key press, so it must stay a quick dictionary lookup.
+    private func handleKeyDown(_ event: CGEvent) -> Bool {
+        // Let keys through while our own Settings window is in front, so its shortcut
+        // recorders can capture combos that are already assigned.
+        guard !NSApp.isActive else { return false }
+        let combo = KeyCombo(
+            keyCode: Int(event.getIntegerValueField(.keyboardEventKeycode)),
+            modifiers: NSEvent.ModifierFlags(rawValue: UInt(event.flags.rawValue))
+        )
+        guard let action = actions[combo] else { return false }
+        // Holding the keys down shouldn't keep switching; swallow the repeats.
+        if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
+            DispatchQueue.main.async { [weak self] in self?.perform(action) }
+        }
+        return true
     }
 
     /// Posting the synthetic swipe needs Accessibility. Beeps when there's no space that way.
-    private func perform(_ switchSpace: () -> Bool) {
+    private func perform(_ action: Action) {
         guard AccessibilityPermission.isGranted else {
             AccessibilityPermission.prompt()
             return
         }
-        _ = iss_init() // Starts the core's event tap if the permission arrived since launch.
-        if !switchSpace() { NSSound.beep() }
-    }
-
-    // MARK: macOS shortcut clashes
-
-    /// Space shortcuts that macOS's own (enabled) keyboard shortcuts would swallow.
-    func systemShortcutClashes() -> [SystemShortcuts.Clash] {
-        let shortcuts = KeyboardShortcuts.Name.spaceShortcuts.compactMap { KeyboardShortcuts.getShortcut(for: $0) }
-        return SystemShortcuts.clashes(with: shortcuts)
-    }
-
-    func turnOffSystemShortcuts(_ clashes: [SystemShortcuts.Clash]) {
-        SystemShortcuts.disable(clashes)
-        // Register our hotkeys afresh now that macOS no longer claims those keys.
-        KeyboardShortcuts.disable(KeyboardShortcuts.Name.spaceShortcuts)
-        KeyboardShortcuts.enable(KeyboardShortcuts.Name.spaceShortcuts)
+        let switched: Bool
+        switch action {
+        case .previous: switched = iss_switch(ISSDirectionLeft)
+        case .next: switched = iss_switch(ISSDirectionRight)
+        case let .space(number): switched = iss_switch_to_index(UInt32(number - 1))
+        }
+        if !switched { NSSound.beep() }
     }
 }

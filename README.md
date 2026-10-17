@@ -87,10 +87,10 @@ Apple Silicon, macOS 14+.
   permission. If you use Stage Manager, enable **Leave room for recent apps** there to keep its
   left-side app strip unobstructed.
 - **Spaces:** press ⌃← / ⌃→ to move one space left/right, or ⌃ + a number to jump to that
-  space. macOS uses ⌃← / ⌃→ for its own (animated) switching and takes priority, so
-  **Settings → Spaces** shows a warning with a **Turn Off in macOS** button when any of your
-  space shortcuts clash with an enabled macOS shortcut. All shortcuts are editable there, along
-  with **Instant trackpad swipes**. Needs Accessibility, like window management.
+  space. These take priority over macOS's own (animated) Mission Control shortcuts on the same
+  keys, so there's nothing to turn off. All shortcuts are editable in **Settings → Spaces** (if the
+  recorder warns a combo is used by the system, choose **Use Anyway**), along with
+  **Instant trackpad swipes**. Needs Accessibility, like window management.
 - **Power:** the menu's **Power** section has a keep-awake **duration slider**
   (Off · 15m · 30m · 1h · 2h · 4h · ∞) — dragging right of Off starts keep-awake and shows a live
   "Auto-off in …" countdown; drag back to Off to stop. **Prevent all sleep** is the stronger,
@@ -145,9 +145,9 @@ xcodebuild -scheme thetoolbox -configuration Debug build
 - **DDC monitor control** needs no special permission on Apple Silicon.
 - **Window management** needs **Accessibility** permission
   (System Settings → Privacy & Security → Accessibility). The app prompts on first use.
-- **Space switching** posts a synthetic trackpad swipe and (for instant swipes) uses a session
-  event tap on gesture events — both require Accessibility. **Turn Off in macOS** edits
-  `com.apple.symbolichotkeys`, the same setting as System Settings → Keyboard → Keyboard Shortcuts.
+- **Space switching** posts a synthetic trackpad swipe and uses session event taps — on key
+  presses (so its shortcuts beat macOS's own) and on trackpad gestures (for instant swipes) —
+  all of which require Accessibility.
 - **Brightness-key routing** (to the display under the pointer) uses a session event tap, which
   also requires Accessibility.
 - **AI usage:** Claude credentials are read noninteractively from Claude Code's credentials file
