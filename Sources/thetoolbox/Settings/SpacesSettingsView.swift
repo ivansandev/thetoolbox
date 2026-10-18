@@ -18,6 +18,12 @@ struct SpacesSettingsView: View {
             }
 
             Section {
+                Toggle("Instant Mission Control and App Exposé", isOn: $spaceSwitcher.instantMissionControl)
+            } footer: {
+                Text("Their keyboard shortcuts open them without the zoom animation. Set the shortcuts in System Settings → Keyboard → Keyboard Shortcuts → Mission Control.")
+            }
+
+            Section {
                 shortcutRow("Previous Space", .spacePrevious)
                 shortcutRow("Next Space", .spaceNext)
                 ForEach(1 ... 10, id: \.self) { number in

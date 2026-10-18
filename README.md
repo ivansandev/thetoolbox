@@ -41,6 +41,8 @@ Apple Silicon, macOS 14+.
   ⌃← / ⌃→ move to the previous/next space and ⌃1…⌃0 jump straight to spaces 1–10 (spaces 11–16
   can have shortcuts too). An optional **Instant trackpad swipes** setting makes your own
   three/four-finger swipes skip the animation as well. Works with SIP on and uses native spaces.
+  **Instant Mission Control and App Exposé** (optional) opens both without the zoom animation
+  from their macOS keyboard shortcuts.
 - **Brightness sync** — make an external monitor follow the built-in display's brightness via a
   configurable linear mapping (its level at built-in 0% and at built-in 100%).
 - **Power (Caffeine)** — keep the Mac awake (prevent idle display sleep), so the screen stays lit
@@ -90,7 +92,9 @@ Apple Silicon, macOS 14+.
   space. These take priority over macOS's own (animated) Mission Control shortcuts on the same
   keys, so there's nothing to turn off. All shortcuts are editable in **Settings → Spaces** (if the
   recorder warns a combo is used by the system, choose **Use Anyway**), along with
-  **Instant trackpad swipes**. Needs Accessibility, like window management.
+  **Instant trackpad swipes** and **Instant Mission Control and App Exposé** (which uses the
+  shortcuts set in System Settings → Keyboard → Keyboard Shortcuts → Mission Control). Needs
+  Accessibility, like window management.
 - **Power:** the menu's **Power** section has a keep-awake **duration slider**
   (Off · 15m · 30m · 1h · 2h · 4h · ∞) — dragging right of Off starts keep-awake and shows a live
   "Auto-off in …" countdown; drag back to Off to stop. **Prevent all sleep** is the stronger,

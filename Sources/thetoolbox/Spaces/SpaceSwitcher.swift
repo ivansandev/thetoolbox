@@ -16,12 +16,20 @@ final class SpaceSwitcher: ObservableObject {
         }
     }
 
+    /// Mission Control and App Exposé open without the zoom animation from their macOS shortcuts.
+    @Published var instantMissionControl: Bool {
+        didSet {
+            prefs.instantMissionControl = instantMissionControl
+            missionControl.isEnabled = instantMissionControl
+        }
+    }
+
     private enum Action {
         case previous, next, space(Int)
     }
 
     /// A key code plus ⌃⌥⇧⌘ flags, comparable between a recorded shortcut and a live key event.
-    private struct KeyCombo: Hashable {
+    struct KeyCombo: Hashable {
         let keyCode: Int
         let modifiers: UInt
 
@@ -33,11 +41,14 @@ final class SpaceSwitcher: ObservableObject {
 
     private let prefs = Preferences.shared
     private let keyTap = KeyDownTap()
+    private let missionControl = InstantMissionControl()
     private var actions: [KeyCombo: Action] = [:]
     private var startRetryTimer: Timer?
 
     init() {
         instantSwipes = prefs.instantSpaceSwipes
+        instantMissionControl = prefs.instantMissionControl
+        missionControl.isEnabled = instantMissionControl
         seedDefaultsIfNeeded()
         reloadShortcuts()
         keyTap.handler = { [weak self] event in self?.handleKeyDown(event) ?? false }
@@ -120,19 +131,31 @@ final class SpaceSwitcher: ObservableObject {
 
     /// Runs on the main thread for every key press, so it must stay a quick dictionary lookup.
     private func handleKeyDown(_ event: CGEvent) -> Bool {
-        // Let keys through while our own Settings window is in front, so its shortcut
-        // recorders can capture combos that are already assigned.
-        guard !NSApp.isActive else { return false }
+        // While a shortcut recorder is listening, hand it every key directly. Otherwise macOS
+        // acts on its own shortcuts (⌃←, ⌃→, ⌃1…) first and the recorder never sees them.
+        if Self.isRecordingShortcut, let key = NSEvent(cgEvent: event) {
+            NSApp.postEvent(key, atStart: false)
+            return true
+        }
         let combo = KeyCombo(
             keyCode: Int(event.getIntegerValueField(.keyboardEventKeycode)),
             modifiers: NSEvent.ModifierFlags(rawValue: UInt(event.flags.rawValue))
         )
-        guard let action = actions[combo] else { return false }
+        let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+        guard let action = actions[combo] else {
+            return missionControl.handleKeyDown(combo, isRepeat: isRepeat)
+        }
         // Holding the keys down shouldn't keep switching; swallow the repeats.
-        if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
+        if !isRepeat {
             DispatchQueue.main.async { [weak self] in self?.perform(action) }
         }
         return true
+    }
+
+    /// A focused recorder edits through the window's field editor, whose delegate is the recorder.
+    private static var isRecordingShortcut: Bool {
+        guard let editor = NSApp.keyWindow?.firstResponder as? NSTextView else { return false }
+        return editor.delegate is KeyboardShortcuts.RecorderCocoa
     }
 
     /// Posting the synthetic swipe needs Accessibility. Beeps when there's no space that way.

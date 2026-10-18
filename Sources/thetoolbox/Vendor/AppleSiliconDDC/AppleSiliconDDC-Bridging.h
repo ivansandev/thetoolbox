@@ -21,5 +21,6 @@ extern CFDictionaryRef CoreDisplay_DisplayCreateInfoDictionary(CGDirectDisplayID
 // Instant space switching core, vendored from jurplel/InstantSpaceSwitcher. This is the
 // target's only bridging header, so it's imported here too.
 #import "../InstantSpaceSwitcher/include/ISS.h"
+#import "../../Spaces/MissionControlSwipe.h"
 
 #endif /* THETOOLBOX_APPLESILICONDDC_BRIDGING_H */
