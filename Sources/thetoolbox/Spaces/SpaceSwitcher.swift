@@ -74,23 +74,38 @@ final class SpaceSwitcher: ObservableObject {
         guard !UserDefaults.standard.bool(forKey: flag) else { return }
         UserDefaults.standard.set(true, forKey: flag)
 
-        var defaults: [(KeyboardShortcuts.Name, KeyboardShortcuts.Shortcut)] = [
-            (.spacePrevious, KeyboardShortcuts.Shortcut(.leftArrow, modifiers: .control)),
-            (.spaceNext, KeyboardShortcuts.Shortcut(.rightArrow, modifiers: .control)),
-        ]
-        let digits: [KeyboardShortcuts.Key] = [.one, .two, .three, .four, .five, .six, .seven, .eight, .nine, .zero]
-        for (index, key) in digits.enumerated() {
-            defaults.append((KeyboardShortcuts.Name.switchToSpace(index + 1),
-                             KeyboardShortcuts.Shortcut(key, modifiers: .control)))
-        }
-
         let windowNames = KeyboardShortcuts.Name.windowShortcuts
             + prefs.loadCustomSizes().map { WindowManager.shortcutName(for: $0.id) }
         let taken = windowNames.compactMap { KeyboardShortcuts.getShortcut(for: $0) }
-        for (name, shortcut) in defaults
+        for (name, shortcut) in Self.defaultShortcuts
         where KeyboardShortcuts.getShortcut(for: name) == nil && !taken.contains(shortcut) {
             KeyboardShortcuts.setShortcut(shortcut, for: name)
         }
+    }
+
+    /// ⌃← / ⌃→ for previous/next and ⌃1…⌃0 for spaces 1–10; spaces 11–16 have none.
+    private static let defaultShortcuts: [(KeyboardShortcuts.Name, KeyboardShortcuts.Shortcut)] = {
+        var defaults: [(KeyboardShortcuts.Name, KeyboardShortcuts.Shortcut)] = [
+            (.spacePrevious, .init(.leftArrow, modifiers: .control)),
+            (.spaceNext, .init(.rightArrow, modifiers: .control)),
+        ]
+        let digits: [KeyboardShortcuts.Key] = [.one, .two, .three, .four, .five, .six, .seven, .eight, .nine, .zero]
+        for (index, key) in digits.enumerated() {
+            defaults.append((.switchToSpace(index + 1), .init(key, modifiers: .control)))
+        }
+        return defaults
+    }()
+
+    /// Puts every space shortcut back to its default, clearing the ones that have none. Returns
+    /// the names that now hold a shortcut, so the caller can resolve clashes in their favor.
+    func restoreDefaultShortcuts() -> [KeyboardShortcuts.Name] {
+        for name in KeyboardShortcuts.Name.spaceShortcuts {
+            KeyboardShortcuts.setShortcut(nil, for: name)
+        }
+        for (name, shortcut) in Self.defaultShortcuts {
+            KeyboardShortcuts.setShortcut(shortcut, for: name)
+        }
+        return Self.defaultShortcuts.map(\.0)
     }
 
     // MARK: Startup

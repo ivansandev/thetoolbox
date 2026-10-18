@@ -37,8 +37,20 @@ final class WindowManager: ObservableObject {
         guard !UserDefaults.standard.bool(forKey: flag) else { return }
         UserDefaults.standard.set(true, forKey: flag)
 
+        for (name, shortcut) in Self.defaultShortcuts where KeyboardShortcuts.getShortcut(for: name) == nil {
+            KeyboardShortcuts.setShortcut(shortcut, for: name)
+        }
+
+        if customSizes.isEmpty {
+            let size = CustomSize(name: "Center 60% × 80%", widthFraction: 0.6, heightFraction: 0.8)
+            customSizes.append(size)
+            prefs.saveCustomSizes(customSizes)
+        }
+    }
+
+    private static let defaultShortcuts: [(KeyboardShortcuts.Name, KeyboardShortcuts.Shortcut)] = {
         let controlOption: NSEvent.ModifierFlags = [.control, .option]
-        let builtinDefaults: [(KeyboardShortcuts.Name, KeyboardShortcuts.Shortcut)] = [
+        return [
             (.windowLeftHalf, .init(.leftArrow, modifiers: controlOption)),
             (.windowRightHalf, .init(.rightArrow, modifiers: controlOption)),
             (.windowTopHalf, .init(.upArrow, modifiers: controlOption)),
@@ -49,14 +61,13 @@ final class WindowManager: ObservableObject {
             (.windowDisplayLeft, .init(.leftArrow, modifiers: [.control, .option, .command])),
             (.windowDisplayRight, .init(.rightArrow, modifiers: [.control, .option, .command])),
         ]
-        for (name, shortcut) in builtinDefaults where KeyboardShortcuts.getShortcut(for: name) == nil {
-            KeyboardShortcuts.setShortcut(shortcut, for: name)
-        }
+    }()
 
-        if customSizes.isEmpty {
-            let size = CustomSize(name: "Center 60% × 80%", widthFraction: 0.6, heightFraction: 0.8)
-            customSizes.append(size)
-            prefs.saveCustomSizes(customSizes)
+    /// Puts the built-in window actions' shortcuts back to their defaults. Custom sizes keep theirs.
+    func restoreDefaultShortcuts() {
+        for (name, shortcut) in Self.defaultShortcuts {
+            KeyboardShortcuts.setShortcut(shortcut, for: name)
+            resolveShortcutConflict(preferring: name)
         }
     }
 

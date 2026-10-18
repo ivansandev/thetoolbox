@@ -34,6 +34,11 @@ struct SpacesSettingsView: View {
                         shortcutRow("Space \(number)", .switchToSpace(number))
                     }
                 }
+                Button("Restore Defaults") {
+                    for name in spaceSwitcher.restoreDefaultShortcuts() {
+                        windowManager.resolveShortcutConflict(preferring: name)
+                    }
+                }
             } header: {
                 Text("Shortcuts")
             } footer: {

@@ -91,7 +91,8 @@ Apple Silicon, macOS 14+.
 - **Spaces:** press ⌃← / ⌃→ to move one space left/right, or ⌃ + a number to jump to that
   space. These take priority over macOS's own (animated) Mission Control shortcuts on the same
   keys, so there's nothing to turn off. All shortcuts are editable in **Settings → Spaces** (if the
-  recorder warns a combo is used by the system, choose **Use Anyway**), along with
+  recorder warns a combo is used by the system, choose **Use Anyway**; **Restore Defaults** puts
+  them back), along with
   **Instant trackpad swipes** and **Instant Mission Control and App Exposé** (which uses the
   shortcuts set in System Settings → Keyboard → Keyboard Shortcuts → Mission Control). Needs
   Accessibility, like window management.

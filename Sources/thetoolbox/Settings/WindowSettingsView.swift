@@ -27,6 +27,9 @@ struct WindowSettingsView: View {
                 shortcutRow("Center", .windowCenterFit)
                 shortcutRow("Move to Left Display", .windowDisplayLeft)
                 shortcutRow("Move to Right Display", .windowDisplayRight)
+                Button("Restore Defaults") {
+                    windowManager.restoreDefaultShortcuts()
+                }
             }
 
             Section("Custom Sizes") {
