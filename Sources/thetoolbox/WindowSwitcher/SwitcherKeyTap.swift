@@ -4,6 +4,7 @@ import CoreGraphics
 /// The switcher's session event tap. It runs on its own thread so a busy main thread can't make
 /// macOS disable the tap in the middle of a switch. `SwitcherKeys` decides what happens with
 /// each event; commands are delivered on the main thread. Needs Accessibility.
+/// Call start() and stop() from the main thread.
 final class SwitcherKeyTap {
     /// Called on the main thread.
     var onCommand: ((SwitcherCommand) -> Void)?
@@ -14,6 +15,8 @@ final class SwitcherKeyTap {
     private var forwardsToRecorder = false
     private var tap: CFMachPort?
     private var runLoop: CFRunLoop?
+    /// Signalled by the tap thread after its teardown, so stop() can wait for it.
+    private var tapFinished: DispatchSemaphore?
 
     var isRunning: Bool { locked { tap != nil } }
 
@@ -24,7 +27,9 @@ final class SwitcherKeyTap {
         guard !isRunning else { return true }
         guard AccessibilityPermission.isGranted else { return false }
         let ready = DispatchSemaphore(value: 0)
-        let thread = Thread { self.run(ready: ready) }
+        let finished = DispatchSemaphore(value: 0)
+        locked { tapFinished = finished }
+        let thread = Thread { self.run(ready: ready, finished: finished) }
         thread.name = "thetoolbox window switcher keys"
         thread.qualityOfService = .userInteractive
         thread.start()
@@ -32,15 +37,19 @@ final class SwitcherKeyTap {
         return isRunning
     }
 
-    /// Stops the tap thread. Safe to call when it isn't running.
+    /// Stops the tap thread and returns once the tap is fully torn down. Safe to call when it
+    /// isn't running.
     func stop() {
-        locked {
+        let finished: DispatchSemaphore? = locked {
             keys.reset()
-            guard let runLoop else { return }
+            guard let runLoop else { return nil }
             // Queued as a block so it also works if the loop hasn't started running yet.
             CFRunLoopPerformBlock(runLoop, CFRunLoopMode.defaultMode.rawValue) { CFRunLoopStop(runLoop) }
             CFRunLoopWakeUp(runLoop)
+            return tapFinished
         }
+        // Wait outside the lock: the tap thread takes the lock to finish its teardown.
+        finished?.wait()
     }
 
     func configure(enabled: Bool, trigger: SwitcherTrigger) {
@@ -62,7 +71,7 @@ final class SwitcherKeyTap {
 
     // MARK: Tap thread
 
-    private func run(ready: DispatchSemaphore) {
+    private func run(ready: DispatchSemaphore, finished: DispatchSemaphore) {
         let mask = (CGEventMask(1) << CGEventType.keyDown.rawValue)
             | (CGEventMask(1) << CGEventType.keyUp.rawValue)
             | (CGEventMask(1) << CGEventType.flagsChanged.rawValue)
@@ -101,6 +110,7 @@ final class SwitcherKeyTap {
             self.runLoop = nil
             keys.reset()
         }
+        finished.signal()
     }
 
     fileprivate func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
