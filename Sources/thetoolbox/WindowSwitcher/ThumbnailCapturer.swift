@@ -22,7 +22,8 @@ final class ThumbnailCapturer {
     /// each image arrives. Does nothing without Screen Recording access. Stops when cancelled.
     func capture(_ ids: [CGWindowID], maxSize: CGSize, onImage: @escaping (CGWindowID, CGImage) -> Void) async {
         guard ScreenRecordingPermission.isGranted, !ids.isEmpty,
-              let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+              let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false),
+              !Task.isCancelled
         else { return }
         let byID = Dictionary(content.windows.map { ($0.windowID, $0) }, uniquingKeysWith: { first, _ in first })
         var pending = ids.compactMap { byID[$0] }.makeIterator()

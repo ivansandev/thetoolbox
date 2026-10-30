@@ -105,6 +105,24 @@ final class SwitcherKeysTests: XCTestCase {
         XCTAssertEqual(keys.handle(.keyUp(keyCode: tab)), .passThrough, "only once per swallowed key-down")
     }
 
+    func testAKeyWithoutTheModifierCommitsAndPassesThrough() {
+        // The ⌘ release was missed (e.g. the tap was briefly off), so ⌘ is no longer held.
+        var keys = makeKeys()
+        _ = keys.handle(down(tab))
+        XCTAssertEqual(keys.handle(down(qKey, [])), decision(.commit, swallow: false))
+        XCTAssertFalse(keys.isActive)
+        XCTAssertEqual(keys.handle(.keyUp(keyCode: qKey)), .passThrough)
+    }
+
+    func testAPassedThroughKeyDownClearsAStaleSwallowedKeyUp() {
+        var keys = makeKeys()
+        _ = keys.handle(down(tab))
+        _ = keys.handle(.modifiersChanged([]))
+        // Tab's key-up was missed. A later plain Tab must reach the app whole.
+        XCTAssertEqual(keys.handle(down(tab, [])), .passThrough)
+        XCTAssertEqual(keys.handle(.keyUp(keyCode: tab)), .passThrough)
+    }
+
     func testRepeatAfterEscapeDoesNotReopen() {
         var keys = makeKeys()
         _ = keys.handle(down(tab))

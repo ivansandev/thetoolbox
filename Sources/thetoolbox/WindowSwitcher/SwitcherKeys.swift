@@ -115,17 +115,31 @@ struct SwitcherKeys {
             return SwitcherKeyDecision(command: .commit, swallow: false)
 
         case let .keyDown(keyCode, modifiers, isRepeat):
-            if isActive {
-                return swallow(keyCode, sessionCommand(keyCode: keyCode, modifiers: modifiers))
-            }
-            guard keyCode == trigger.keyCode,
-                  modifiers.intersection(.holdable) == trigger.modifiers else { return .passThrough }
-            // A trigger key still held after Esc keeps repeating; it must not reopen the switcher.
-            guard !isRepeat else { return swallow(keyCode, nil) }
-            isActive = true
-            sessionID &+= 1
-            return swallow(keyCode, .begin(forward: !modifiers.contains(.shift)))
+            let decision = keyDown(keyCode: keyCode, modifiers: modifiers, isRepeat: isRepeat)
+            // A key-down that reaches the app makes any older swallowed key-up for it stale (that
+            // key-up was missed), so this key's own key-up must reach the app too.
+            if !decision.swallow { swallowedKeyUps.remove(keyCode) }
+            return decision
         }
+    }
+
+    private mutating func keyDown(keyCode: UInt16, modifiers: SwitcherModifiers, isRepeat: Bool) -> SwitcherKeyDecision {
+        if isActive {
+            // The modifier release was missed, so the shortcut is no longer held: commit, and let
+            // the key through.
+            guard modifiers.isSuperset(of: trigger.modifiers) else {
+                isActive = false
+                return SwitcherKeyDecision(command: .commit, swallow: false)
+            }
+            return swallow(keyCode, sessionCommand(keyCode: keyCode, modifiers: modifiers))
+        }
+        guard keyCode == trigger.keyCode,
+              modifiers.intersection(.holdable) == trigger.modifiers else { return .passThrough }
+        // A trigger key still held after Esc keeps repeating; it must not reopen the switcher.
+        guard !isRepeat else { return swallow(keyCode, nil) }
+        isActive = true
+        sessionID &+= 1
+        return swallow(keyCode, .begin(forward: !modifiers.contains(.shift)))
     }
 
     private mutating func sessionCommand(keyCode: UInt16, modifiers: SwitcherModifiers) -> SwitcherCommand? {

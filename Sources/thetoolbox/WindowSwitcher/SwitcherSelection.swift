@@ -7,14 +7,17 @@ struct SwitcherSelection: Equatable {
     private(set) var index: Int
 
     /// Forward starts on the previous window (index 1), backward on the last one, so a quick
-    /// ⌘Tab flips between the two most recent windows.
-    init(count: Int, columns: Int, forward: Bool) {
+    /// ⌘Tab flips between the two most recent windows. When the first window isn't the active
+    /// app's (`firstIsActive` false), it is the one you came from, so forward starts on it.
+    init(count: Int, columns: Int, forward: Bool, firstIsActive: Bool = true) {
         self.count = max(0, count)
         self.columns = max(1, columns)
         if count <= 1 {
             index = 0
+        } else if forward {
+            index = firstIsActive ? 1 : 0
         } else {
-            index = forward ? 1 : count - 1
+            index = count - 1
         }
     }
 

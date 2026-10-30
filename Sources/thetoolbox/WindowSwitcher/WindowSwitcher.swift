@@ -176,11 +176,16 @@ final class WindowSwitcher: ObservableObject {
         let columns = SwitcherLayout.columns(count: snapshot.windows.count, availableWidth: visible.width * Self.screenFraction)
         let limit = columns * SwitcherLayout.maxRows(availableHeight: visible.height * Self.screenFraction)
         let windows = Array(snapshot.windows.prefix(limit))
+        // Usually the top window is the active app's. When it isn't (thetoolbox's Settings or a
+        // windowless Finder is active), it is the window you came from.
+        let firstIsActive = NSWorkspace.shared.frontmostApplication.map { $0.processIdentifier == windows[0].pid } ?? true
 
         session = Session(
             id: id,
             snapshot: WindowSnapshot(windows: windows, elements: snapshot.elements),
-            selection: SwitcherSelection(count: windows.count, columns: columns, forward: forward),
+            selection: SwitcherSelection(
+                count: windows.count, columns: columns, forward: forward, firstIsActive: firstIsActive
+            ),
             screen: screen
         )
         panelTimer = Timer.scheduledTimer(withTimeInterval: Self.panelDelay, repeats: false) { [weak self] _ in
@@ -219,7 +224,8 @@ final class WindowSwitcher: ObservableObject {
         guard var current = session else { return }
         change(&current.selection)
         session = current
-        panel.model.selectedIndex = current.selection.index
+        // Not `panel`: that would build the panel inside the quick-switch window.
+        createdPanel?.model.selectedIndex = current.selection.index
     }
 
     private func hover(_ index: Int) {

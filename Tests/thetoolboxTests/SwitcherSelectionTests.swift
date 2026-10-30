@@ -13,6 +13,16 @@ final class SwitcherSelectionTests: XCTestCase {
         XCTAssertEqual(SwitcherSelection(count: 5, columns: 5, forward: false).index, 4)
     }
 
+    func testForwardStartsOnTheFirstWindowWhenItIsNotTheActiveApps() {
+        // e.g. thetoolbox's Settings or a windowless Finder is active: the top window is the one
+        // you came from.
+        XCTAssertEqual(SwitcherSelection(count: 5, columns: 5, forward: true, firstIsActive: false).index, 0)
+    }
+
+    func testBackwardIgnoresWhetherTheFirstWindowIsActive() {
+        XCTAssertEqual(SwitcherSelection(count: 5, columns: 5, forward: false, firstIsActive: false).index, 4)
+    }
+
     func testASingleWindowIsSelectedEitherWay() {
         XCTAssertEqual(SwitcherSelection(count: 1, columns: 1, forward: true).index, 0)
         XCTAssertEqual(SwitcherSelection(count: 1, columns: 1, forward: false).index, 0)
