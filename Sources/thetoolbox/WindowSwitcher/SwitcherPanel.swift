@@ -9,6 +9,9 @@ final class SwitcherViewModel: ObservableObject {
     @Published var thumbnails: [CGWindowID: CGImage] = [:]
     @Published var icons: [pid_t: NSImage] = [:]
     @Published var columns = 1
+    @Published var layout = SwitcherLayout(tileWidth: SwitcherLayout.minTileWidth)
+    /// Pixels per point of the screen the panel is on, so thumbnails draw sharp.
+    @Published var scale: CGFloat = 2
 }
 
 /// A floating HUD panel in the style of the system ⌘Tab switcher.
@@ -38,7 +41,7 @@ final class SwitcherPanel {
         background.blendingMode = .behindWindow
         background.state = .active
         background.wantsLayer = true
-        background.layer?.cornerRadius = 18
+        background.layer?.cornerRadius = 22
         background.layer?.cornerCurve = .continuous
         background.layer?.masksToBounds = true
         background.addSubview(hostingView)
@@ -66,17 +69,21 @@ final class SwitcherPanel {
         thumbnails: [CGWindowID: CGImage],
         selectedIndex: Int,
         columns: Int,
+        layout: SwitcherLayout,
         on screen: NSScreen
     ) {
+        model.layout = layout
+        model.scale = screen.backingScaleFactor
         model.columns = columns
         model.icons = icons
         model.thumbnails = thumbnails
         model.windows = windows
         model.selectedIndex = selectedIndex
+        hostingView.layout = layout
         hostingView.columns = columns
         hostingView.count = windows.count
 
-        let size = SwitcherLayout.panelSize(count: windows.count, columns: columns)
+        let size = layout.panelSize(count: windows.count, columns: columns)
         let visible = screen.visibleFrame
         let frame = NSRect(
             x: (visible.midX - size.width / 2).rounded(),
@@ -103,6 +110,7 @@ private final class NonKeyPanel: NSPanel {
 /// Hosts the SwiftUI tiles and handles the mouse itself: an always-active tracking area works
 /// while thetoolbox isn't the active app.
 private final class SwitcherHostingView: NSHostingView<SwitcherView> {
+    var layout = SwitcherLayout(tileWidth: SwitcherLayout.minTileWidth)
     var columns = 1
     var count = 0
     var onHover: ((Int) -> Void)?
@@ -141,7 +149,7 @@ private final class SwitcherHostingView: NSHostingView<SwitcherView> {
     private func tileIndex(for event: NSEvent) -> Int? {
         let point = convert(event.locationInWindow, from: nil)
         let fromTop = isFlipped ? point.y : bounds.height - point.y
-        return SwitcherLayout.tileIndex(at: CGPoint(x: point.x, y: fromTop), columns: columns, count: count)
+        return layout.tileIndex(at: CGPoint(x: point.x, y: fromTop), columns: columns, count: count)
     }
 }
 
@@ -159,18 +167,20 @@ struct SwitcherView: View {
                                 window: window,
                                 icon: model.icons[window.pid],
                                 thumbnail: model.thumbnails[window.id],
-                                isSelected: index == model.selectedIndex
+                                isSelected: index == model.selectedIndex,
+                                layout: model.layout,
+                                scale: model.scale
                             )
                         }
                     }
                 }
             }
             Text(selectedTitle)
-                .font(.system(size: 13, weight: .medium))
+                .font(.system(size: 14, weight: .medium))
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .frame(
-                    width: SwitcherLayout.gridSize(count: model.windows.count, columns: model.columns).width,
+                    width: model.layout.gridSize(count: model.windows.count, columns: model.columns).width,
                     height: SwitcherLayout.titleHeight
                 )
         }
@@ -194,19 +204,21 @@ private struct SwitcherTile: View {
     let icon: NSImage?
     let thumbnail: CGImage?
     let isSelected: Bool
+    let layout: SwitcherLayout
+    let scale: CGFloat
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             Group {
                 if let thumbnail {
-                    Image(decorative: thumbnail, scale: 2)
+                    Image(decorative: thumbnail, scale: scale)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 } else if let icon {
                     Image(nsImage: icon)
                         .resizable()
-                        .frame(width: 64, height: 64)
+                        .frame(width: layout.placeholderIconSize, height: layout.placeholderIconSize)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -214,14 +226,15 @@ private struct SwitcherTile: View {
             if thumbnail != nil, let icon {
                 Image(nsImage: icon)
                     .resizable()
-                    .frame(width: 32, height: 32)
-                    .offset(x: 6, y: 6)
+                    .frame(width: layout.badgeIconSize, height: layout.badgeIconSize)
+                    .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                    .offset(x: layout.badgeIconSize * 0.2, y: layout.badgeIconSize * 0.2)
             }
         }
-        .padding(SwitcherLayout.tileInset)
-        .frame(width: SwitcherLayout.tileSize.width, height: SwitcherLayout.tileSize.height)
+        .padding(layout.tileInset)
+        .frame(width: layout.tileSize.width, height: layout.tileSize.height)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(isSelected ? Color.primary.opacity(0.18) : Color.clear)
         )
         .opacity(window.isMinimized || window.isAppHidden ? 0.6 : 1)

@@ -91,35 +91,78 @@ final class SwitcherSelectionTests: XCTestCase {
 
     // MARK: Layout
 
+    private let layout = SwitcherLayout(tileWidth: 200)
+
+    func testTileHeightFollowsTheAspectRatio() {
+        XCTAssertEqual(layout.tileSize, CGSize(width: 200, height: 150))
+    }
+
     func testColumnsFitTheAvailableWidth() {
-        // (1000 - 32 + 8) / 208 = 4.69 → 4 per row
-        XCTAssertEqual(SwitcherLayout.columns(count: 3, availableWidth: 1000), 3)
-        XCTAssertEqual(SwitcherLayout.columns(count: 10, availableWidth: 1000), 4)
-        XCTAssertEqual(SwitcherLayout.columns(count: 10, availableWidth: 100), 1)
-        XCTAssertEqual(SwitcherLayout.columns(count: 0, availableWidth: 1000), 1)
+        // (1000 - 40 + 10) / 210 = 4.62 → 4 per row
+        XCTAssertEqual(layout.columns(count: 3, availableWidth: 1000), 3)
+        XCTAssertEqual(layout.columns(count: 10, availableWidth: 1000), 4)
+        XCTAssertEqual(layout.columns(count: 10, availableWidth: 100), 1)
+        XCTAssertEqual(layout.columns(count: 0, availableWidth: 1000), 1)
     }
 
     func testMaxRowsFitTheAvailableHeight() {
-        // (1000 - 32 - 12 - 18 + 8) / 158 = 5.99 → 5
-        XCTAssertEqual(SwitcherLayout.maxRows(availableHeight: 1000), 5)
-        XCTAssertEqual(SwitcherLayout.maxRows(availableHeight: 100), 1)
+        // (1000 - 40 - 12 - 20 + 10) / 160 = 5.86 → 5
+        XCTAssertEqual(layout.maxRows(availableHeight: 1000), 5)
+        XCTAssertEqual(layout.maxRows(availableHeight: 100), 1)
     }
 
     func testPanelSize() {
-        XCTAssertEqual(SwitcherLayout.panelSize(count: 3, columns: 3), CGSize(width: 648, height: 212))
-        XCTAssertEqual(SwitcherLayout.panelSize(count: 5, columns: 3), CGSize(width: 648, height: 370))
+        XCTAssertEqual(layout.panelSize(count: 3, columns: 3), CGSize(width: 660, height: 222))
+        XCTAssertEqual(layout.panelSize(count: 5, columns: 3), CGSize(width: 660, height: 382))
     }
 
     func testTileIndexHitTesting() {
         func hit(_ x: CGFloat, _ y: CGFloat) -> Int? {
-            SwitcherLayout.tileIndex(at: CGPoint(x: x, y: y), columns: 3, count: 4)
+            layout.tileIndex(at: CGPoint(x: x, y: y), columns: 3, count: 4)
         }
-        XCTAssertEqual(hit(17, 17), 0)
-        XCTAssertNil(hit(220, 17), "gap between tiles")
-        XCTAssertEqual(hit(225, 17), 1)
-        XCTAssertEqual(hit(17, 175), 3)
-        XCTAssertNil(hit(225, 175), "past the last tile")
-        XCTAssertNil(hit(10, 17), "inside the padding")
-        XCTAssertNil(hit(640, 17), "past the last column")
+        XCTAssertEqual(hit(21, 21), 0)
+        XCTAssertNil(hit(225, 21), "gap between tiles")
+        XCTAssertEqual(hit(231, 21), 1)
+        XCTAssertEqual(hit(21, 181), 3)
+        XCTAssertNil(hit(231, 181), "past the last tile")
+        XCTAssertNil(hit(10, 21), "inside the padding")
+        XCTAssertNil(hit(645, 21), "past the last column")
+    }
+
+    // MARK: Sizing to the screen
+
+    private let laptop = CGSize(width: 1210, height: 756) // 80% of a 1512-point-wide screen
+
+    func testTilesScaleWithTheScreenWidth() {
+        // 1512 × 0.18 = 272
+        let fitted = SwitcherLayout.fitting(count: 3, screenWidth: 1512, available: laptop)
+        XCTAssertEqual(fitted.tileSize, CGSize(width: 272, height: 204))
+    }
+
+    func testTileWidthIsClamped() {
+        let huge = SwitcherLayout.fitting(count: 1, screenWidth: 4000, available: CGSize(width: 3200, height: 1800))
+        XCTAssertEqual(huge.tileSize.width, SwitcherLayout.maxTileWidth)
+        let tiny = SwitcherLayout.fitting(count: 1, screenWidth: 500, available: CGSize(width: 400, height: 300))
+        XCTAssertEqual(tiny.tileSize.width, SwitcherLayout.minTileWidth)
+    }
+
+    func testTilesShrinkUntilEveryWindowFits() {
+        let fitted = SwitcherLayout.fitting(count: 30, screenWidth: 1512, available: laptop)
+        XCTAssertLessThan(fitted.tileSize.width, 272)
+        let capacity = fitted.columns(count: 30, availableWidth: laptop.width)
+            * fitted.maxRows(availableHeight: laptop.height)
+        XCTAssertGreaterThanOrEqual(capacity, 30)
+    }
+
+    func testTilesNeverShrinkBelowTheMinimum() {
+        let fitted = SwitcherLayout.fitting(count: 500, screenWidth: 1512, available: laptop)
+        XCTAssertEqual(fitted.tileSize.width, SwitcherLayout.minTileWidth)
+    }
+
+    func testIconsGrowWithTheTile() {
+        let fitted = SwitcherLayout.fitting(count: 3, screenWidth: 1512, available: laptop)
+        XCTAssertEqual(fitted.badgeIconSize, 54)
+        XCTAssertEqual(SwitcherLayout(tileWidth: 160).badgeIconSize, 36)
+        XCTAssertEqual(SwitcherLayout(tileWidth: 380).badgeIconSize, 72)
     }
 }

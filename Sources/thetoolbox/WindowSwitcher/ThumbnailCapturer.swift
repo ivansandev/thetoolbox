@@ -19,8 +19,9 @@ final class ThumbnailCapturer {
     }
 
     /// Captures `ids`, at most `maxConcurrent` at a time, calling `onImage` on the main thread as
-    /// each image arrives. Does nothing without Screen Recording access. Stops when cancelled.
-    func capture(_ ids: [CGWindowID], maxSize: CGSize, onImage: @escaping (CGWindowID, CGImage) -> Void) async {
+    /// each image arrives, at `scale` pixels per point. Does nothing without Screen Recording
+    /// access. Stops when cancelled.
+    func capture(_ ids: [CGWindowID], maxSize: CGSize, scale: CGFloat, onImage: @escaping (CGWindowID, CGImage) -> Void) async {
         guard ScreenRecordingPermission.isGranted, !ids.isEmpty,
               let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false),
               !Task.isCancelled
@@ -31,7 +32,7 @@ final class ThumbnailCapturer {
         await withTaskGroup(of: (CGWindowID, CGImage?).self) { group in
             for _ in 0 ..< Self.maxConcurrent {
                 guard let window = pending.next() else { break }
-                group.addTask { (window.windowID, await Self.image(of: window, maxSize: maxSize)) }
+                group.addTask { (window.windowID, await Self.image(of: window, maxSize: maxSize, scale: scale)) }
             }
             while let result = await group.next() {
                 let (id, image) = result
@@ -46,17 +47,17 @@ final class ThumbnailCapturer {
                     }
                 }
                 if let window = pending.next() {
-                    group.addTask { (window.windowID, await Self.image(of: window, maxSize: maxSize)) }
+                    group.addTask { (window.windowID, await Self.image(of: window, maxSize: maxSize, scale: scale)) }
                 }
             }
         }
     }
 
-    private static func image(of window: SCWindow, maxSize: CGSize) async -> CGImage? {
+    private static func image(of window: SCWindow, maxSize: CGSize, scale pixelsPerPoint: CGFloat) async -> CGImage? {
         let frame = window.frame.size
         guard frame.width > 0, frame.height > 0 else { return nil }
-        // Fit inside maxSize, at 2× for Retina.
-        let scale = min(maxSize.width / frame.width, maxSize.height / frame.height, 1) * 2
+        // Fit inside maxSize, at the screen's pixel density.
+        let scale = min(maxSize.width / frame.width, maxSize.height / frame.height, 1) * pixelsPerPoint
         let configuration = SCStreamConfiguration()
         configuration.width = max(1, Int(frame.width * scale))
         configuration.height = max(1, Int(frame.height * scale))

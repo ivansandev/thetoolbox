@@ -54,32 +54,63 @@ struct SwitcherSelection: Equatable {
     }
 }
 
-/// Geometry of the switcher panel. Tiles are a fixed size, laid out left to right and top to
-/// bottom, so the SwiftUI view and the mouse hit-testing share these numbers.
-enum SwitcherLayout {
-    static let tileSize = CGSize(width: 200, height: 150)
-    static let tileInset: CGFloat = 10
-    static let spacing: CGFloat = 8
-    static let padding: CGFloat = 16
+/// Geometry of the switcher panel. Tiles scale with the screen: the preferred width is a share
+/// of the screen's width, shrunk only when that many windows wouldn't fit. The SwiftUI view and
+/// the mouse hit-testing share these numbers.
+struct SwitcherLayout: Equatable {
+    static let spacing: CGFloat = 10
+    static let padding: CGFloat = 20
     static let titleSpacing: CGFloat = 12
-    static let titleHeight: CGFloat = 18
+    static let titleHeight: CGFloat = 20
+    /// Preferred tile width as a share of the screen's width, and its bounds.
+    static let screenWidthShare: CGFloat = 0.18
+    static let minTileWidth: CGFloat = 160
+    static let maxTileWidth: CGFloat = 380
+    static let tileAspect: CGFloat = 0.75
 
-    static var thumbnailSize: CGSize {
+    let tileSize: CGSize
+
+    init(tileWidth: CGFloat) {
+        let width = tileWidth.rounded()
+        tileSize = CGSize(width: width, height: (width * Self.tileAspect).rounded())
+    }
+
+    /// The preferred tile size for a screen `screenWidth` points wide, made smaller (down to
+    /// `minTileWidth`) until `count` tiles fit in `available`.
+    static func fitting(count: Int, screenWidth: CGFloat, available: CGSize) -> SwitcherLayout {
+        var width = min(max(screenWidth * screenWidthShare, minTileWidth), maxTileWidth)
+        while width > minTileWidth {
+            let layout = SwitcherLayout(tileWidth: width)
+            let capacity = layout.columns(count: count, availableWidth: available.width)
+                * layout.maxRows(availableHeight: available.height)
+            if capacity >= count { return layout }
+            width = max(minTileWidth, width * 0.9)
+        }
+        return SwitcherLayout(tileWidth: minTileWidth)
+    }
+
+    var tileInset: CGFloat { (tileSize.width * 0.05).rounded() }
+    /// The app icon badged on a thumbnail's corner.
+    var badgeIconSize: CGFloat { min(max((tileSize.width * 0.2).rounded(), 36), 72) }
+    /// The app icon shown instead of a thumbnail while none is available.
+    var placeholderIconSize: CGFloat { min((tileSize.width * 0.4).rounded(), 128) }
+
+    var thumbnailSize: CGSize {
         CGSize(width: tileSize.width - tileInset * 2, height: tileSize.height - tileInset * 2)
     }
 
     /// Tiles per row: all of them if they fit, otherwise as many as fit (at least one).
-    static func columns(count: Int, availableWidth: CGFloat) -> Int {
+    func columns(count: Int, availableWidth: CGFloat) -> Int {
         guard count > 0 else { return 1 }
-        let usable = availableWidth - padding * 2 + spacing
-        let fit = max(1, Int(usable / (tileSize.width + spacing)))
+        let usable = availableWidth - Self.padding * 2 + Self.spacing
+        let fit = max(1, Int(usable / (tileSize.width + Self.spacing)))
         return min(count, fit)
     }
 
     /// Rows that fit in `availableHeight`, leaving room for the title line (at least one).
-    static func maxRows(availableHeight: CGFloat) -> Int {
-        let usable = availableHeight - padding * 2 - titleSpacing - titleHeight + spacing
-        return max(1, Int(usable / (tileSize.height + spacing)))
+    func maxRows(availableHeight: CGFloat) -> Int {
+        let usable = availableHeight - Self.padding * 2 - Self.titleSpacing - Self.titleHeight + Self.spacing
+        return max(1, Int(usable / (tileSize.height + Self.spacing)))
     }
 
     static func rows(count: Int, columns: Int) -> Int {
@@ -87,31 +118,31 @@ enum SwitcherLayout {
         return max(1, (count + columns - 1) / columns)
     }
 
-    static func gridSize(count: Int, columns: Int) -> CGSize {
+    func gridSize(count: Int, columns: Int) -> CGSize {
         let columns = CGFloat(max(1, columns))
-        let rows = CGFloat(rows(count: count, columns: Int(columns)))
+        let rows = CGFloat(Self.rows(count: count, columns: Int(columns)))
         return CGSize(
-            width: columns * tileSize.width + (columns - 1) * spacing,
-            height: rows * tileSize.height + (rows - 1) * spacing
+            width: columns * tileSize.width + (columns - 1) * Self.spacing,
+            height: rows * tileSize.height + (rows - 1) * Self.spacing
         )
     }
 
-    static func panelSize(count: Int, columns: Int) -> CGSize {
+    func panelSize(count: Int, columns: Int) -> CGSize {
         let grid = gridSize(count: count, columns: columns)
         return CGSize(
-            width: grid.width + padding * 2,
-            height: grid.height + padding * 2 + titleSpacing + titleHeight
+            width: grid.width + Self.padding * 2,
+            height: grid.height + Self.padding * 2 + Self.titleSpacing + Self.titleHeight
         )
     }
 
     /// The tile under `point`, measured from the panel's top-left corner, or nil for padding,
     /// gaps and empty cells.
-    static func tileIndex(at point: CGPoint, columns: Int, count: Int) -> Int? {
-        let x = point.x - padding
-        let y = point.y - padding
+    func tileIndex(at point: CGPoint, columns: Int, count: Int) -> Int? {
+        let x = point.x - Self.padding
+        let y = point.y - Self.padding
         guard x >= 0, y >= 0, columns > 0 else { return nil }
-        let strideX = tileSize.width + spacing
-        let strideY = tileSize.height + spacing
+        let strideX = tileSize.width + Self.spacing
+        let strideY = tileSize.height + Self.spacing
         let column = Int(x / strideX)
         let row = Int(y / strideY)
         guard column < columns,

@@ -46,6 +46,7 @@ final class WindowSwitcher: ObservableObject {
         let id: UInt64
         let snapshot: WindowSnapshot
         var selection: SwitcherSelection
+        let layout: SwitcherLayout
         let screen: NSScreen
     }
 
@@ -173,8 +174,10 @@ final class WindowSwitcher: ObservableObject {
         }
         // Keep only as many windows as fit on screen; the least recent ones drop off.
         let visible = screen.visibleFrame
-        let columns = SwitcherLayout.columns(count: snapshot.windows.count, availableWidth: visible.width * Self.screenFraction)
-        let limit = columns * SwitcherLayout.maxRows(availableHeight: visible.height * Self.screenFraction)
+        let available = CGSize(width: visible.width * Self.screenFraction, height: visible.height * Self.screenFraction)
+        let layout = SwitcherLayout.fitting(count: snapshot.windows.count, screenWidth: visible.width, available: available)
+        let columns = layout.columns(count: snapshot.windows.count, availableWidth: available.width)
+        let limit = columns * layout.maxRows(availableHeight: available.height)
         let windows = Array(snapshot.windows.prefix(limit))
         // Usually the top window is the active app's. When it isn't (thetoolbox's Settings or a
         // windowless Finder is active), it is the window you came from.
@@ -186,6 +189,7 @@ final class WindowSwitcher: ObservableObject {
             selection: SwitcherSelection(
                 count: windows.count, columns: columns, forward: forward, firstIsActive: firstIsActive
             ),
+            layout: layout,
             screen: screen
         )
         panelTimer = Timer.scheduledTimer(withTimeInterval: Self.panelDelay, repeats: false) { [weak self] _ in
@@ -210,11 +214,14 @@ final class WindowSwitcher: ObservableObject {
             thumbnails: cached,
             selectedIndex: session.selection.index,
             columns: session.selection.columns,
+            layout: session.layout,
             on: session.screen
         )
         let ids = windows.map(\.id)
+        let maxSize = session.layout.thumbnailSize
+        let scale = session.screen.backingScaleFactor
         captureTask = Task { [thumbnails, panel] in
-            await thumbnails.capture(ids, maxSize: SwitcherLayout.thumbnailSize) { id, image in
+            await thumbnails.capture(ids, maxSize: maxSize, scale: scale) { id, image in
                 panel.model.thumbnails[id] = image
             }
         }
