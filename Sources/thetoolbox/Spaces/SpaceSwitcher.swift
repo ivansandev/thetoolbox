@@ -148,7 +148,7 @@ final class SpaceSwitcher: ObservableObject {
     private func handleKeyDown(_ event: CGEvent) -> Bool {
         // While a shortcut recorder is listening, hand it every key directly. Otherwise macOS
         // acts on its own shortcuts (⌃←, ⌃→, ⌃1…) first and the recorder never sees them.
-        if Self.isRecordingShortcut, let key = NSEvent(cgEvent: event) {
+        if ShortcutRecording.isActive, let key = NSEvent(cgEvent: event) {
             NSApp.postEvent(key, atStart: false)
             return true
         }
@@ -165,12 +165,6 @@ final class SpaceSwitcher: ObservableObject {
             DispatchQueue.main.async { [weak self] in self?.perform(action) }
         }
         return true
-    }
-
-    /// A focused recorder edits through the window's field editor, whose delegate is the recorder.
-    private static var isRecordingShortcut: Bool {
-        guard let editor = NSApp.keyWindow?.firstResponder as? NSTextView else { return false }
-        return editor.delegate is KeyboardShortcuts.RecorderCocoa
     }
 
     /// Posting the synthetic swipe needs Accessibility. Beeps when there's no space that way.
