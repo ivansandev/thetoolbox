@@ -56,6 +56,17 @@ final class WindowListPolicyTests: XCTestCase {
         XCTAssertEqual(ids(windows, current: [9]), [1])
     }
 
+    func testDesktopScopeRule() {
+        func inScope(_ window: WindowRecord, _ scope: DesktopScope) -> Bool {
+            WindowListPolicy.isInScope(window, currentSpaceIDs: [1], scope: scope)
+        }
+        XCTAssertTrue(inScope(window(1), .current))
+        XCTAssertTrue(inScope(window(2, spaces: []), .current), "unknown membership")
+        XCTAssertTrue(inScope(window(3, spaces: [9], fullscreen: true), .current))
+        XCTAssertFalse(inScope(window(4, spaces: [2]), .current))
+        XCTAssertTrue(inScope(window(4, spaces: [2]), .all))
+    }
+
     func testFullscreenWindowsAreAlwaysListed() {
         let windows = [window(1), window(2, spaces: [9], fullscreen: true, accessible: false)]
         XCTAssertEqual(ids(windows), [1, 2])

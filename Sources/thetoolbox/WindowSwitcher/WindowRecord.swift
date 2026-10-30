@@ -64,7 +64,7 @@ enum WindowListPolicy {
             let onCurrent = isOnCurrentDesktop(window, currentSpaceIDs)
             // On the current desktop, anything Accessibility doesn't list is a helper surface.
             guard window.isAccessible || !onCurrent else { continue }
-            guard scope == .all || onCurrent || window.isFullscreen else { continue }
+            guard isInScope(window, currentSpaceIDs: currentSpaceIDs, scope: scope) else { continue }
             if window.isAppHidden {
                 if options.includeHidden { hidden.append(window) }
             } else if window.isMinimized {
@@ -80,6 +80,12 @@ enum WindowListPolicy {
     /// "Current desktop" lists every desktop.
     static func effectiveScope(_ scope: DesktopScope, currentIsFullscreen: Bool) -> DesktopScope {
         currentIsFullscreen ? .all : scope
+    }
+
+    /// The desktop rule of `list`, for a scope from `effectiveScope`: "Current desktop" keeps the
+    /// current desktops' windows and fullscreen windows.
+    static func isInScope(_ window: WindowRecord, currentSpaceIDs: Set<UInt64>?, scope: DesktopScope) -> Bool {
+        scope == .all || isOnCurrentDesktop(window, currentSpaceIDs) || window.isFullscreen
     }
 
     /// Unknown membership, or no desktop info at all, counts as the current desktop.

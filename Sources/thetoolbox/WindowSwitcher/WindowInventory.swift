@@ -11,11 +11,14 @@ struct WindowSnapshot {
 }
 
 /// Builds the window list on demand, on the main thread. It takes a few milliseconds, plus at
-/// most `axTimeout` for each app that doesn't answer Accessibility.
+/// most about `axTimeout` for each app that stops answering Accessibility: an app is not asked
+/// again after its first timeout.
 final class WindowInventory {
     private typealias GetWindow = @convention(c) (AXUIElement, UnsafeMutablePointer<CGWindowID>) -> Int32
 
     private static let axTimeout: Float = 0.25
+    /// Read together, in one round trip per window.
+    private static let detailAttributes = [kAXTitleAttribute, kAXMinimizedAttribute, "AXFullScreen"] as CFArray
 
     private let spaces = SpacesAPI.shared
     /// Maps an Accessibility window to its WindowServer ID.
@@ -51,42 +54,57 @@ final class WindowInventory {
             candidates.append(CandidateWindow(id: id, pid: pid, bounds: bounds, name: entry[kCGWindowName as String] as? String))
         }
 
-        // 2. Accessibility details, one app at a time. Apps that don't answer keep their CG data.
-        var details: [CGWindowID: AXDetails] = [:]
-        var unanswered: Set<pid_t> = []
-        for pid in Set(candidates.map(\.pid)) {
-            if let windows = accessibilityWindows(pid: pid) {
-                details.merge(windows) { first, _ in first }
-            } else {
-                unanswered.insert(pid)
-            }
-        }
-
-        // 3. Desktops, then the list rules.
+        // 2. Desktops, and a record of each candidate from WindowServer data alone.
         let desktops = spaces.desktops()
+        let currentIsFullscreen = desktops?.currentIsFullscreen ?? false
+        let scope = WindowListPolicy.effectiveScope(options.scope, currentIsFullscreen: currentIsFullscreen)
         var records: [WindowRecord] = []
         for candidate in candidates {
             guard let app = apps[candidate.pid] else { continue }
-            let detail = details[candidate.id]
             let spaceIDs = desktops == nil ? [] : spaces.spaceIDs(of: candidate.id)
-            let onFullscreenDesktop = desktops.map { !spaceIDs.isDisjoint(with: $0.fullscreen) } ?? false
             records.append(WindowRecord(
                 id: candidate.id,
                 pid: candidate.pid,
                 appName: app.localizedName ?? "",
-                title: detail?.title ?? candidate.name ?? "",
+                title: candidate.name ?? "",
                 bounds: candidate.bounds,
-                isMinimized: detail?.isMinimized ?? false,
-                isFullscreen: (detail?.isFullscreen ?? false) || onFullscreenDesktop,
+                isFullscreen: desktops.map { !spaceIDs.isDisjoint(with: $0.fullscreen) } ?? false,
                 isAppHidden: app.isHidden,
                 spaceIDs: spaceIDs,
-                // When the app didn't answer, nothing says the window is a helper surface.
-                isAccessible: detail != nil || unanswered.contains(candidate.pid)
+                isAccessible: false
             ))
         }
+
+        // 3. Accessibility details, one app at a time, only for apps with a window in scope (the
+        // others' windows can't be listed). Windows an app didn't get to answer keep their CG data.
+        let askedPIDs = Set(records.filter {
+            WindowListPolicy.isInScope($0, currentSpaceIDs: desktops?.current, scope: scope)
+        }.map(\.pid))
+        var details: [CGWindowID: AXDetails] = [:]
+        var unanswered: Set<pid_t> = []
+        for pid in askedPIDs {
+            if let answer = accessibilityWindows(pid: pid) {
+                details.merge(answer.windows) { first, _ in first }
+                if answer.stalled { unanswered.insert(pid) }
+            } else {
+                unanswered.insert(pid)
+            }
+        }
+        for index in records.indices {
+            let id = records[index].id
+            if let detail = details[id] {
+                records[index].title = detail.title
+                records[index].isMinimized = detail.isMinimized
+                records[index].isFullscreen = records[index].isFullscreen || detail.isFullscreen
+            }
+            // When the app didn't answer, nothing says the window is a helper surface.
+            records[index].isAccessible = details[id] != nil || unanswered.contains(records[index].pid)
+        }
+
+        // 4. The list rules.
         let listed = WindowListPolicy.list(
             records, currentSpaceIDs: desktops?.current,
-            currentIsFullscreen: desktops?.currentIsFullscreen ?? false, options: options
+            currentIsFullscreen: currentIsFullscreen, options: options
         )
         var elements: [CGWindowID: AXUIElement] = [:]
         for window in listed {
@@ -113,30 +131,36 @@ final class WindowInventory {
     }
 
     /// The app's Accessibility windows by window ID, or nil when it didn't answer the windows
-    /// list (any error, including a timeout).
-    private func accessibilityWindows(pid: pid_t) -> [CGWindowID: AXDetails]? {
-        guard let getWindow else { return [:] }
+    /// list (any error, including a timeout). `stalled` is true when it stopped answering part
+    /// way through: it isn't asked anything more, and the windows read so far are kept.
+    private func accessibilityWindows(pid: pid_t) -> (windows: [CGWindowID: AXDetails], stalled: Bool)? {
+        guard let getWindow else { return ([:], false) }
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, Self.axTimeout)
-        guard let windows = Self.attribute(app, kAXWindowsAttribute) as? [AXUIElement] else { return nil }
+        var list: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &list) == .success,
+              let windows = list as? [AXUIElement] else { return nil }
         var result: [CGWindowID: AXDetails] = [:]
         for window in windows {
             AXUIElementSetMessagingTimeout(window, Self.axTimeout)
             var id: CGWindowID = 0
-            guard getWindow(window, &id) == AXError.success.rawValue, id != 0 else { continue }
+            let idError = getWindow(window, &id)
+            if idError == AXError.cannotComplete.rawValue { return (result, true) }
+            guard idError == AXError.success.rawValue, id != 0 else { continue }
+            // Without options, an attribute the window lacks comes back as an error value in its
+            // slot and the call still succeeds.
+            var values: CFArray?
+            let error = AXUIElementCopyMultipleAttributeValues(window, Self.detailAttributes, [], &values)
+            if error == .cannotComplete { return (result, true) }
+            let read = error == .success ? (values as? [Any]) ?? [] : []
+            func value<T>(_ index: Int) -> T? { index < read.count ? read[index] as? T : nil }
             result[id] = AXDetails(
                 element: window,
-                title: Self.attribute(window, kAXTitleAttribute) as? String ?? "",
-                isMinimized: Self.attribute(window, kAXMinimizedAttribute) as? Bool ?? false,
-                isFullscreen: Self.attribute(window, "AXFullScreen") as? Bool ?? false
+                title: value(0) ?? "",
+                isMinimized: value(1) ?? false,
+                isFullscreen: value(2) ?? false
             )
         }
-        return result
-    }
-
-    private static func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
-        return value
+        return (result, false)
     }
 }
