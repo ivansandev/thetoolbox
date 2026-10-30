@@ -6,6 +6,7 @@ struct ToolboxApp: App {
     @StateObject private var displayManager = DisplayManager()
     @StateObject private var windowManager = WindowManager()
     @StateObject private var spaceSwitcher = SpaceSwitcher()
+    @StateObject private var windowSwitcher = WindowSwitcher()
     @StateObject private var powerManager = PowerManager()
     @StateObject private var presentationModeManager = PresentationModeManager()
     @StateObject private var systemMonitor = SystemMonitor()
@@ -37,6 +38,7 @@ struct ToolboxApp: App {
                 .environmentObject(spaceSwitcher)
                 .environmentObject(powerManager)
                 .environmentObject(presentationModeManager)
+                .environmentObject(windowSwitcher)
         }
     }
 }

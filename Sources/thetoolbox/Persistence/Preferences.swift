@@ -12,6 +12,10 @@ enum PreferenceKey {
     static let leaveRoomForStageManager = "leaveRoomForStageManager.v1"
     static let instantSpaceSwipes = "instantSpaceSwipes.v1"
     static let instantMissionControl = "instantMissionControl.v1"
+    static let windowSwitcherEnabled = "windowSwitcherEnabled.v1"
+    static let windowSwitcherScope = "windowSwitcherScope.v1"
+    static let windowSwitcherIncludeMinimized = "windowSwitcherIncludeMinimized.v1"
+    static let windowSwitcherIncludeHidden = "windowSwitcherIncludeHidden.v1"
 }
 
 /// Persisted per-display settings. Keyed by the display's stable UUID so they survive
@@ -117,5 +121,27 @@ final class Preferences {
     var instantMissionControl: Bool {
         get { defaults.bool(forKey: PreferenceKey.instantMissionControl) }
         set { defaults.set(newValue, forKey: PreferenceKey.instantMissionControl) }
+    }
+
+    // MARK: Window switcher
+
+    var windowSwitcherEnabled: Bool {
+        get { defaults.object(forKey: PreferenceKey.windowSwitcherEnabled) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: PreferenceKey.windowSwitcherEnabled) }
+    }
+
+    var windowSwitcherScope: DesktopScope {
+        get { defaults.string(forKey: PreferenceKey.windowSwitcherScope).flatMap(DesktopScope.init) ?? .current }
+        set { defaults.set(newValue.rawValue, forKey: PreferenceKey.windowSwitcherScope) }
+    }
+
+    var windowSwitcherIncludeMinimized: Bool {
+        get { defaults.object(forKey: PreferenceKey.windowSwitcherIncludeMinimized) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: PreferenceKey.windowSwitcherIncludeMinimized) }
+    }
+
+    var windowSwitcherIncludeHidden: Bool {
+        get { defaults.object(forKey: PreferenceKey.windowSwitcherIncludeHidden) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: PreferenceKey.windowSwitcherIncludeHidden) }
     }
 }

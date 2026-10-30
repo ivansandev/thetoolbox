@@ -31,4 +31,8 @@ extension KeyboardShortcuts.Name {
     static let spaceShortcuts: [Self] =
         [.spacePrevious, .spaceNext]
             + (1 ... SpaceSwitcher.maxSpaces).map { KeyboardShortcuts.Name.switchToSpace($0) }
+
+    /// Opens the window switcher. Only the recorder and the stored value are used; the switcher's
+    /// own key tap reads it, so KeyboardShortcuts never registers it as a global hotkey.
+    static let windowSwitcher = Self("windowSwitcher", default: .init(.tab, modifiers: .command))
 }
