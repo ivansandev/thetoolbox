@@ -43,6 +43,11 @@ Apple Silicon, macOS 14+.
   three/four-finger swipes skip the animation as well. Works with SIP on and uses native spaces.
   **Instant Mission Control and App Exposé** (optional) opens both without the zoom animation
   from their macOS keyboard shortcuts.
+- **Window switcher** — ⌘Tab shows every window on the current desktop, not just every app,
+  with live thumbnails in a native macOS-style panel. Hold ⌘ and press Tab (⇧Tab or the arrow
+  keys to move back and around, or point and click), then release ⌘ to switch; a quick ⌘Tab flips
+  to the previous window without showing the panel. It replaces the macOS app switcher while it's
+  on. Inspired by [DockWindow](https://github.com/KIKOmanasijev/DockWindow).
 - **Brightness sync** — make an external monitor follow the built-in display's brightness via a
   configurable linear mapping (its level at built-in 0% and at built-in 100%).
 - **Power (Caffeine)** — keep the Mac awake (prevent idle display sleep), so the screen stays lit
@@ -96,6 +101,10 @@ Apple Silicon, macOS 14+.
   **Instant trackpad swipes** and **Instant Mission Control and App Exposé** (which uses the
   shortcuts set in System Settings → Keyboard → Keyboard Shortcuts → Mission Control). Needs
   Accessibility, like window management.
+- **Window switcher:** hold ⌘ and press Tab to step through this desktop's windows (Esc cancels);
+  release ⌘ to switch. **Settings → Switcher** has the on/off switch, the shortcut (**Restore
+  Default** puts back ⌘Tab), and whether to include other desktops, minimized windows and hidden
+  apps. Needs Accessibility; thumbnails also need Screen Recording (app icons otherwise).
 - **Power:** the menu's **Power** section has a keep-awake **duration slider**
   (Off · 15m · 30m · 1h · 2h · 4h · ∞) — dragging right of Off starts keep-awake and shows a live
   "Auto-off in …" countdown; drag back to Off to stop. **Prevent all sleep** is the stronger,
@@ -155,6 +164,10 @@ xcodebuild -scheme thetoolbox -configuration Debug build
   all of which require Accessibility.
 - **Brightness-key routing** (to the display under the pointer) uses a session event tap, which
   also requires Accessibility.
+- **Window switcher** uses a session event tap for its shortcut and Accessibility to read and
+  focus windows. Thumbnails use ScreenCaptureKit, which needs **Screen Recording** permission
+  (System Settings → Privacy & Security → Screen & System Audio Recording); without it the
+  switcher shows app icons. Images stay in memory and are never saved.
 - **AI usage:** Claude credentials are read noninteractively from Claude Code's credentials file
   (when present) or its macOS Keychain item. Valid access tokens are cached in memory and, when
   expiry metadata is available, in thetoolbox's own device-local Keychain item. The imported
@@ -178,7 +191,7 @@ xcodebuild -scheme thetoolbox -configuration Debug build
 
 - `project.yml` — XcodeGen spec (targets, SPM deps, Info.plist, entitlements).
 - `Sources/thetoolbox/` — app source, grouped by feature (`App`, `MenuBar`, `Displays`,
-  `Windows`, `Spaces`, `Settings`, `Shortcuts`, `Persistence`).
+  `Windows`, `WindowSwitcher`, `Spaces`, `Settings`, `Shortcuts`, `Persistence`).
 - Dependencies: [`AppleSiliconDDC`](https://github.com/waydabber/AppleSiliconDDC) (DDC over I2C),
   [`InstantSpaceSwitcher`](https://github.com/jurplel/InstantSpaceSwitcher) (instant space switching core),
   [`KeyboardShortcuts`](https://github.com/sindresorhus/KeyboardShortcuts) (global shortcuts).

@@ -286,7 +286,7 @@ final class WindowManager: ObservableObject {
     /// wins). The cleared recorders update themselves via KeyboardShortcuts' change notification.
     func resolveShortcutConflict(preferring name: KeyboardShortcuts.Name) {
         guard let shortcut = KeyboardShortcuts.getShortcut(for: name) else { return }
-        for other in allShortcutNames + KeyboardShortcuts.Name.spaceShortcuts where other != name {
+        for other in allShortcutNames + KeyboardShortcuts.Name.spaceShortcuts + [.windowSwitcher] where other != name {
             if KeyboardShortcuts.getShortcut(for: other) == shortcut {
                 KeyboardShortcuts.setShortcut(nil, for: other)
             }

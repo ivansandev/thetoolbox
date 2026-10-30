@@ -11,6 +11,8 @@ struct SettingsView: View {
                 .tabItem { Label("Windows", systemImage: "macwindow") }
             SpacesSettingsView()
                 .tabItem { Label("Spaces", systemImage: "rectangle.split.3x1") }
+            WindowSwitcherSettingsView()
+                .tabItem { Label("Switcher", systemImage: "rectangle.on.rectangle") }
         }
         .frame(width: 520, height: 420)
     }
