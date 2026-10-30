@@ -142,8 +142,8 @@ itself on `tapDisabledByTimeout` / `tapDisabledByUserInput`. It is separate from
   fullscreen apps. Its content is an `NSVisualEffectView` with `.hudWindow` material and rounded
   corners, hosting SwiftUI.
 - Tiles: a window thumbnail (or the app icon when there is none), with a small app-icon badge.
-  The selected tile gets the system accent-colored rounded highlight, and its title is shown
-  below the row, like the system switcher.
+  The selected tile gets a soft gray rounded highlight (`Color.primary` at low opacity), and its
+  title is shown below the row, like the system switcher.
 - Layout: a single row that wraps into a grid when it doesn't fit, sized to about 80% of the
   width of the display under the mouse, and centered on that display.
 - Mouse: hovering selects a tile, but only after the pointer actually moves, so a panel opening
