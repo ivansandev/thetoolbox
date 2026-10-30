@@ -42,6 +42,8 @@ final class WindowSwitcher: ObservableObject {
     static let screenFraction: CGFloat = 0.8
 
     private struct Session {
+        /// The key machine's ID for this session.
+        let id: UInt64
         let snapshot: WindowSnapshot
         var selection: SwitcherSelection
         let screen: NSScreen
@@ -74,7 +76,7 @@ final class WindowSwitcher: ObservableObject {
         includeMinimized = prefs.windowSwitcherIncludeMinimized
         includeHidden = prefs.windowSwitcherIncludeHidden
 
-        keyTap.onCommand = { [weak self] command in self?.handle(command) }
+        keyTap.onCommand = { [weak self] command, id in self?.handle(command, id: id) }
 
         // Creating the name writes its default shortcut, which posts a defaults-changed
         // notification. Force that now, before observing, or the observer re-enters the lazy init.
@@ -139,14 +141,18 @@ final class WindowSwitcher: ObservableObject {
 
     // MARK: Session
 
-    private func handle(_ command: SwitcherCommand) {
+    /// `id` is the key machine's session the command belongs to. Commands for a session that
+    /// is no longer the current one arrived late and are dropped; only a begin starts a new one.
+    private func handle(_ command: SwitcherCommand, id: UInt64) {
+        if case let .begin(forward) = command {
+            // Every begin is a new key session (its ID is new), so drop any leftover one.
+            endSession(focus: false)
+            begin(forward: forward, id: id)
+            return
+        }
+        guard let session, session.id == id else { return }
         switch command {
-        case let .begin(forward):
-            if session != nil {
-                updateSelection { forward ? $0.next() : $0.previous() }
-            } else {
-                begin(forward: forward)
-            }
+        case .begin: break
         case .next: updateSelection { $0.next() }
         case .previous: updateSelection { $0.previous() }
         case let .move(direction): updateSelection { $0.move(direction) }
@@ -155,14 +161,14 @@ final class WindowSwitcher: ObservableObject {
         }
     }
 
-    private func begin(forward: Bool) {
+    private func begin(forward: Bool, id: UInt64) {
         let options = WindowListOptions(scope: scope, includeMinimized: includeMinimized, includeHidden: includeHidden)
         let snapshot = inventory.snapshot(options: options)
         let mouse = NSEvent.mouseLocation
         guard !snapshot.windows.isEmpty,
               let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main
         else {
-            keyTap.endSession()
+            keyTap.endSession(id: id)
             return
         }
         // Keep only as many windows as fit on screen; the least recent ones drop off.
@@ -172,6 +178,7 @@ final class WindowSwitcher: ObservableObject {
         let windows = Array(snapshot.windows.prefix(limit))
 
         session = Session(
+            id: id,
             snapshot: WindowSnapshot(windows: windows, elements: snapshot.elements),
             selection: SwitcherSelection(count: windows.count, columns: columns, forward: forward),
             screen: screen
@@ -232,9 +239,9 @@ final class WindowSwitcher: ObservableObject {
         captureTask?.cancel()
         captureTask = nil
         createdPanel?.hide()
-        keyTap.endSession()
         guard let ended = session else { return }
         session = nil
+        keyTap.endSession(id: ended.id)
         guard focus, ended.snapshot.windows.indices.contains(ended.selection.index) else { return }
         let window = ended.snapshot.windows[ended.selection.index]
         focuser.focus(window, element: ended.snapshot.elements[window.id])

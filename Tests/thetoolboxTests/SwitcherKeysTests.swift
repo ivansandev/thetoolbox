@@ -122,10 +122,41 @@ final class SwitcherKeysTests: XCTestCase {
     func testEndSessionStopsTheSessionButKeepsKeyUpSwallowing() {
         var keys = makeKeys()
         _ = keys.handle(down(tab))
-        keys.endSession()
+        keys.endSession(id: keys.sessionID)
         XCTAssertFalse(keys.isActive)
         XCTAssertEqual(keys.handle(.modifiersChanged([])), .passThrough)
         XCTAssertEqual(keys.handle(.keyUp(keyCode: tab)), .swallowed)
+    }
+
+    func testSessionIDIncrementsWithEachBegin() {
+        var keys = makeKeys()
+        let start = keys.sessionID
+        _ = keys.handle(down(tab))
+        XCTAssertEqual(keys.sessionID, start &+ 1)
+        _ = keys.handle(.modifiersChanged([]))
+        _ = keys.handle(down(tab))
+        XCTAssertEqual(keys.sessionID, start &+ 2)
+    }
+
+    func testEndSessionWithAnOldIDLeavesTheNewSessionRunning() {
+        var keys = makeKeys()
+        _ = keys.handle(down(tab))
+        let first = keys.sessionID
+        _ = keys.handle(.modifiersChanged([]))
+        _ = keys.handle(down(tab))
+        // The first session's commit reaches the main thread after the second one began.
+        keys.endSession(id: first)
+        XCTAssertTrue(keys.isActive)
+        XCTAssertEqual(keys.handle(.modifiersChanged([])), decision(.commit, swallow: false))
+    }
+
+    func testEndSessionWithTheCurrentIDEndsIt() {
+        var keys = makeKeys()
+        _ = keys.handle(down(tab))
+        _ = keys.handle(.modifiersChanged([]))
+        _ = keys.handle(down(tab))
+        keys.endSession(id: keys.sessionID)
+        XCTAssertFalse(keys.isActive)
     }
 
     func testDisablingPassesEverythingThroughAndResets() {

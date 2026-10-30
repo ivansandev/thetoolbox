@@ -83,14 +83,18 @@ struct SwitcherKeys {
         didSet { if !isEnabled { reset() } }
     }
 
-    /// True from the trigger press until commit, cancel or `endSession()`.
+    /// True from the trigger press until commit, cancel or `endSession(id:)`.
     private(set) var isActive = false
+    /// Goes up by one at every begin, so a late end for an earlier session can't end this one.
+    private(set) var sessionID: UInt64 = 0
     /// Key-ups to swallow because we swallowed their key-down.
     private var swallowedKeyUps: Set<UInt16> = []
 
-    /// Ends the session without a command (e.g. the list was empty, or a click picked a window).
-    /// Key-ups for keys already swallowed are still swallowed.
-    mutating func endSession() {
+    /// Ends session `id` without a command (e.g. the list was empty, or a click picked a window).
+    /// Does nothing when a newer session has begun since. Key-ups for keys already swallowed are
+    /// still swallowed.
+    mutating func endSession(id: UInt64) {
+        guard id == sessionID else { return }
         isActive = false
     }
 
@@ -119,6 +123,7 @@ struct SwitcherKeys {
             // A trigger key still held after Esc keeps repeating; it must not reopen the switcher.
             guard !isRepeat else { return swallow(keyCode, nil) }
             isActive = true
+            sessionID &+= 1
             return swallow(keyCode, .begin(forward: !modifiers.contains(.shift)))
         }
     }

@@ -6,8 +6,8 @@ import CoreGraphics
 /// each event; commands are delivered on the main thread. Needs Accessibility.
 /// Call start() and stop() from the main thread.
 final class SwitcherKeyTap {
-    /// Called on the main thread.
-    var onCommand: ((SwitcherCommand) -> Void)?
+    /// Called on the main thread with the ID of the session the command belongs to.
+    var onCommand: ((SwitcherCommand, UInt64) -> Void)?
 
     private let lock = NSLock()
     // Everything below is guarded by `lock`.
@@ -59,9 +59,10 @@ final class SwitcherKeyTap {
         }
     }
 
-    /// Ends a session the manager closed itself (empty list, mouse click, feature turned off).
-    func endSession() {
-        locked { keys.endSession() }
+    /// Ends session `id`, which the manager closed itself (empty list, mouse click, commit).
+    /// Ignored when a newer session has already begun.
+    func endSession(id: UInt64) {
+        locked { keys.endSession(id: id) }
     }
 
     /// While a shortcut recorder is listening, key presses go to it instead of the switcher.
@@ -135,8 +136,8 @@ final class SwitcherKeyTap {
             return pass
         }
 
-        let (decision, forward): (SwitcherKeyDecision, Bool) = locked {
-            forwardsToRecorder ? (.passThrough, true) : (keys.handle(keyEvent), false)
+        let (decision, forward, sessionID): (SwitcherKeyDecision, Bool, UInt64) = locked {
+            forwardsToRecorder ? (.passThrough, true, keys.sessionID) : (keys.handle(keyEvent), false, keys.sessionID)
         }
 
         if forward {
@@ -149,7 +150,7 @@ final class SwitcherKeyTap {
             return nil
         }
         if let command = decision.command {
-            DispatchQueue.main.async { [weak self] in self?.onCommand?(command) }
+            DispatchQueue.main.async { [weak self] in self?.onCommand?(command, sessionID) }
         }
         return decision.swallow ? nil : pass
     }
