@@ -50,9 +50,12 @@ enum WindowListPolicy {
     /// `windows` must be front-to-back, which is most-recently-used first. Visible windows keep
     /// that order, then minimized windows, then windows of hidden apps. `currentSpaceIDs` holds
     /// every display's current desktop, or nil when desktop info is unavailable.
+    /// `currentIsFullscreen` is true when one of those is a fullscreen app's desktop.
     static func list(
-        _ windows: [WindowRecord], currentSpaceIDs: Set<UInt64>?, options: WindowListOptions
+        _ windows: [WindowRecord], currentSpaceIDs: Set<UInt64>?, currentIsFullscreen: Bool = false,
+        options: WindowListOptions
     ) -> [WindowRecord] {
+        let scope = effectiveScope(options.scope, currentIsFullscreen: currentIsFullscreen)
         var visible: [WindowRecord] = []
         var minimized: [WindowRecord] = []
         var hidden: [WindowRecord] = []
@@ -60,7 +63,7 @@ enum WindowListPolicy {
             let onCurrent = isOnCurrentDesktop(window, currentSpaceIDs)
             // On the current desktop, anything Accessibility doesn't list is a helper surface.
             guard window.isAccessible || !onCurrent else { continue }
-            guard options.scope == .all || onCurrent || window.isFullscreen else { continue }
+            guard scope == .all || onCurrent || window.isFullscreen else { continue }
             if window.isAppHidden {
                 if options.includeHidden { hidden.append(window) }
             } else if window.isMinimized {
@@ -70,6 +73,12 @@ enum WindowListPolicy {
             }
         }
         return visible + minimized + hidden
+    }
+
+    /// From a fullscreen app's desktop, the windows you came from are on another desktop, so
+    /// "Current desktop" lists every desktop.
+    static func effectiveScope(_ scope: DesktopScope, currentIsFullscreen: Bool) -> DesktopScope {
+        currentIsFullscreen ? .all : scope
     }
 
     /// Unknown membership, or no desktop info at all, counts as the current desktop.

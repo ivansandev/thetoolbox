@@ -23,9 +23,12 @@ final class WindowListPolicyTests: XCTestCase {
     private func ids(
         _ windows: [WindowRecord],
         current: Set<UInt64>? = [1],
+        currentIsFullscreen: Bool = false,
         options: WindowListOptions = WindowListOptions()
     ) -> [CGWindowID] {
-        WindowListPolicy.list(windows, currentSpaceIDs: current, options: options).map(\.id)
+        WindowListPolicy.list(
+            windows, currentSpaceIDs: current, currentIsFullscreen: currentIsFullscreen, options: options
+        ).map(\.id)
     }
 
     func testKeepsFrontToBackOrder() {
@@ -44,6 +47,13 @@ final class WindowListPolicyTests: XCTestCase {
     func testAllDesktopsScopeKeepsOtherDesktops() {
         let windows = [window(1), window(2, spaces: [2], accessible: false)]
         XCTAssertEqual(ids(windows, options: WindowListOptions(scope: .all)), [1, 2])
+    }
+
+    func testFromAFullscreenDesktopEveryDesktopIsListed() {
+        // In a fullscreen app (desktop 9), the regular desktop you came from is another desktop.
+        let windows = [window(1, spaces: [9], fullscreen: true), window(2, spaces: [1], accessible: false)]
+        XCTAssertEqual(ids(windows, current: [9], currentIsFullscreen: true), [1, 2])
+        XCTAssertEqual(ids(windows, current: [9]), [1])
     }
 
     func testFullscreenWindowsAreAlwaysListed() {

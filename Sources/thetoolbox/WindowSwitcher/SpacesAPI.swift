@@ -11,6 +11,9 @@ final class SpacesAPI {
         let current: Set<UInt64>
         /// Desktops that hold a fullscreen app.
         let fullscreen: Set<UInt64>
+
+        /// True when a display is showing a fullscreen app's desktop.
+        var currentIsFullscreen: Bool { !current.isDisjoint(with: fullscreen) }
     }
 
     private typealias MainConnectionID = @convention(c) () -> Int32

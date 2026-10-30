@@ -78,7 +78,10 @@ final class WindowInventory {
                 isAccessible: detail != nil
             ))
         }
-        let listed = WindowListPolicy.list(records, currentSpaceIDs: desktops?.current, options: options)
+        let listed = WindowListPolicy.list(
+            records, currentSpaceIDs: desktops?.current,
+            currentIsFullscreen: desktops?.currentIsFullscreen ?? false, options: options
+        )
         var elements: [CGWindowID: AXUIElement] = [:]
         for window in listed {
             if let element = details[window.id]?.element { elements[window.id] = element }
