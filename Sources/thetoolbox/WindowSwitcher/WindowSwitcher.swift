@@ -100,6 +100,9 @@ final class WindowSwitcher: ObservableObject {
     /// Runs the tap only when the feature is on, a valid shortcut is set, the window list works
     /// and Accessibility is granted. Otherwise macOS's own ⌘Tab is untouched.
     private func applyState() {
+        // Storing a shortcut registers a global hotkey even with no handler. The switcher's own
+        // tap handles the key, so unregister it: it must not swallow the key while we're off.
+        KeyboardShortcuts.disable(.windowSwitcher)
         let trigger = KeyboardShortcuts.getShortcut(for: .windowSwitcher).flatMap { SwitcherTrigger($0) }
         guard isEnabled, let trigger, inventory.isAvailable else {
             stopRetrying()
