@@ -51,10 +51,15 @@ final class WindowInventory {
             candidates.append(CandidateWindow(id: id, pid: pid, bounds: bounds, name: entry[kCGWindowName as String] as? String))
         }
 
-        // 2. Accessibility details, one app at a time.
+        // 2. Accessibility details, one app at a time. Apps that don't answer keep their CG data.
         var details: [CGWindowID: AXDetails] = [:]
+        var unanswered: Set<pid_t> = []
         for pid in Set(candidates.map(\.pid)) {
-            details.merge(accessibilityWindows(pid: pid)) { first, _ in first }
+            if let windows = accessibilityWindows(pid: pid) {
+                details.merge(windows) { first, _ in first }
+            } else {
+                unanswered.insert(pid)
+            }
         }
 
         // 3. Desktops, then the list rules.
@@ -75,7 +80,8 @@ final class WindowInventory {
                 isFullscreen: (detail?.isFullscreen ?? false) || onFullscreenDesktop,
                 isAppHidden: app.isHidden,
                 spaceIDs: spaceIDs,
-                isAccessible: detail != nil
+                // When the app didn't answer, nothing says the window is a helper surface.
+                isAccessible: detail != nil || unanswered.contains(candidate.pid)
             ))
         }
         let listed = WindowListPolicy.list(
@@ -106,11 +112,13 @@ final class WindowInventory {
         let isFullscreen: Bool
     }
 
-    private func accessibilityWindows(pid: pid_t) -> [CGWindowID: AXDetails] {
+    /// The app's Accessibility windows by window ID, or nil when it didn't answer the windows
+    /// list (any error, including a timeout).
+    private func accessibilityWindows(pid: pid_t) -> [CGWindowID: AXDetails]? {
         guard let getWindow else { return [:] }
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, Self.axTimeout)
-        guard let windows = Self.attribute(app, kAXWindowsAttribute) as? [AXUIElement] else { return [:] }
+        guard let windows = Self.attribute(app, kAXWindowsAttribute) as? [AXUIElement] else { return nil }
         var result: [CGWindowID: AXDetails] = [:]
         for window in windows {
             AXUIElementSetMessagingTimeout(window, Self.axTimeout)

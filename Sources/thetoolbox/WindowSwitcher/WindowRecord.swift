@@ -12,8 +12,9 @@ struct WindowRecord: Equatable, Identifiable {
     var isAppHidden = false
     /// Desktops (spaces) the window is on. Empty when unknown.
     var spaceIDs: Set<UInt64> = []
-    /// Whether Accessibility listed this window. It lists every real window on the current
-    /// desktop but usually not windows on other desktops.
+    /// Whether Accessibility listed this window (also true when the app didn't answer, so its
+    /// CG data is trusted). It lists every real window on the current desktop but usually not
+    /// windows on other desktops.
     var isAccessible = true
 
     /// "App — Title", or just the app name when the title is empty or repeats it.
