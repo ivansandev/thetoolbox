@@ -10,10 +10,9 @@ Apple Silicon, macOS 14+.
 
 ## Features
 
-- **System and AI status metrics** — optionally show CPU utilization, RAM pressure, SSD usage,
-  Claude five-hour remaining, Codex five-hour remaining, or any combination directly in the
-  menu bar. Enable each reading with its own checkbox in **Settings → General**; all are off by
-  default, leaving the regular app icon in place. Enabling any system metric also
+- **System status metrics** — optionally show CPU utilization, RAM pressure, SSD usage,
+  or any combination directly in the menu bar. Enable each reading with its own checkbox in
+  **Settings → General**; all are off by default, leaving the regular app icon in place. Enabling any system metric also
   shows circular CPU, memory, and storage gauges at the top of the menu, colored by load
   (green / amber / red). Click one to expand a detail card — CPU shows user/system split, load
   average, cores, and top processes; memory shows the App / Wired / Compressed breakdown, pressure,
@@ -54,16 +53,6 @@ Apple Silicon, macOS 14+.
   and the system keeps running. A separate administrator-authorized **Prevent all sleep** toggle
   applies macOS's system-wide `pmset disablesleep` setting, including lid-close sleep, with a
   safety warning before it is enabled.
-- **AI subscription usage** — a compact disclosure directly after Power shows remaining Claude
-  and ChatGPT usage windows, reset times, and plan names. Claude uses the signed-in Claude Code
-  credential; ChatGPT limits come from the signed-in Codex CLI's supported app-server protocol.
-  Background credential reads never ask for a password. If macOS blocks Claude access, use
-  **Allow Claude Access…** in the expanded AI Usage section. **Refresh Claude Access…** renews
-  an expired session through Claude Code's local `/status` command, without submitting a model
-  prompt or requiring a new browser login when the CLI session can still be renewed.
-  Values refresh every five minutes, after wake, and when connectivity returns; saved values stay
-  visible and are clearly marked stale if a refresh fails. A master switch in **Settings → General**
-  hides all AI usage UI and stops provider requests when the feature is not wanted.
 - **Brightness keys → display under the pointer** — the hardware brightness keys adjust
   whichever display the pointer is over (external monitors via DDC, with an on-screen overlay);
   the built-in display keeps its native behavior.
@@ -73,8 +62,7 @@ Apple Silicon, macOS 14+.
 ## Usage
 
 - **Status-bar metrics:** open **Settings → General → Status bar metrics** and check CPU utilization,
-  RAM pressure, SSD usage, Claude's five-hour limit, Codex's five-hour limit, or any combination.
-  AI values use the readable `Claude` and `Codex` labels and show the percentage remaining.
+  RAM pressure, SSD usage, or any combination.
   Selected readings share the app's single clickable menu-bar item; uncheck all metrics to restore the
   wrench-and-screwdriver icon.
 - **Monitor control:** click the menu bar icon for per-display brightness / contrast / volume
@@ -110,10 +98,6 @@ Apple Silicon, macOS 14+.
   "Auto-off in …" countdown; drag back to Off to stop. **Prevent all sleep** is the stronger,
   persistent system setting: enabling it warns that even closing a MacBook lid will not sleep the
   Mac, then asks for administrator approval. Turn it off to restore normal sleep.
-- **AI usage:** expand **AI Usage** immediately below Power. The collapsed row shows the shared
-  weekly remaining limit for Claude and ChatGPT; the expanded view shows every current usage
-  window and its reset countdown. Use the refresh button for an immediate update, or disable the
-  feature entirely with **Settings → General → Enable AI usage**.
 - **Brightness keys:** with Accessibility granted, press the hardware brightness keys while the
   pointer is over an external monitor to change *that* monitor (toggle in **Settings → General**).
 - **Desktop:** the menu's **Desktop** section toggles desktop icons and widgets (each briefly
@@ -123,8 +107,6 @@ Apple Silicon, macOS 14+.
 
 - **Apple Silicon** Mac (M-series) — the DDC path uses Apple-Silicon-only APIs.
 - **macOS 14 (Sonoma)** or later.
-- **AI usage (optional):** Claude Code signed in with a Claude subscription and/or the Codex CLI
-  signed in with ChatGPT. Each provider continues to work independently if the other is absent.
 - **Xcode 16+** and [XcodeGen](https://github.com/yonaskolb/XcodeGen) to build.
 
 There is no notarized download — **build from source**. A copied build is unsigned, so Gatekeeper
@@ -168,15 +150,6 @@ xcodebuild -scheme thetoolbox -configuration Debug build
   focus windows. Thumbnails use ScreenCaptureKit, which needs **Screen Recording** permission
   (System Settings → Privacy & Security → Screen & System Audio Recording); without it the
   switcher shows app icons. Images stay in memory and are never saved.
-- **AI usage:** Claude credentials are read noninteractively from Claude Code's credentials file
-  (when present) or its macOS Keychain item. Valid access tokens are cached in memory and, when
-  expiry metadata is available, in thetoolbox's own device-local Keychain item. The imported
-  token can be reused until expiry if macOS revokes access to Claude Code's item. Only an
-  explicit Claude access action can request Keychain authorization or launch Claude Code to
-  renew its session; thetoolbox never copies or consumes the CLI's rotating refresh token.
-  ChatGPT usage is requested from `codex app-server`; Codex manages credential storage and
-  token refresh. The usage snapshot file contains only percentages, reset dates, plan labels,
-  and refresh times. See [authentication notes](docs/ai-usage-authentication.md) for tradeoffs.
 - **Prevent all sleep:** macOS shows its administrator authorization dialog when changing the
   system-wide setting. thetoolbox never receives or stores the password.
 - **Private APIs:** thetoolbox calls private frameworks (`IOAVService`, `DisplayServices`) and

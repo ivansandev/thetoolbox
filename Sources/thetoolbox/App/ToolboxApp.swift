@@ -11,7 +11,6 @@ struct ToolboxApp: App {
     @StateObject private var presentationModeManager = PresentationModeManager()
     @StateObject private var systemMonitor = SystemMonitor()
     @StateObject private var keyboardCleaner = KeyboardCleaner()
-    @StateObject private var aiUsageManager = AIUsageManager()
 
     var body: some Scene {
         // .window style is required so the dropdown can host SwiftUI controls
@@ -25,9 +24,8 @@ struct ToolboxApp: App {
                 .environmentObject(presentationModeManager)
                 .environmentObject(systemMonitor)
                 .environmentObject(keyboardCleaner)
-                .environmentObject(aiUsageManager)
         } label: {
-            StatusBarLabel(monitor: systemMonitor, usageManager: aiUsageManager)
+            StatusBarLabel(monitor: systemMonitor)
         }
         .menuBarExtraStyle(.window)
 

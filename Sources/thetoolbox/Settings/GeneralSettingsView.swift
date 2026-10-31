@@ -7,9 +7,6 @@ struct GeneralSettingsView: View {
     @AppStorage(PreferenceKey.statusBarCPU) private var showCPU = false
     @AppStorage(PreferenceKey.statusBarMemory) private var showMemory = false
     @AppStorage(PreferenceKey.statusBarStorage) private var showStorage = false
-    @AppStorage(PreferenceKey.statusBarClaudeFiveHour) private var showClaudeFiveHour = false
-    @AppStorage(PreferenceKey.statusBarChatGPTFiveHour) private var showChatGPTFiveHour = false
-    @AppStorage(PreferenceKey.aiUsageEnabled) private var aiUsageEnabled = true
 
     var body: some View {
         Form {
@@ -26,21 +23,10 @@ struct GeneralSettingsView: View {
                     }
                 }
 
-            Section {
-                Toggle("Enable AI usage", isOn: $aiUsageEnabled)
-            } footer: {
-                Text("Shows Claude and Codex subscription limits in the menu and allows their five-hour limits in the status bar. Turning this off stops usage requests.")
-            }
-
             Section("Status bar metrics") {
                 Toggle("CPU utilization", isOn: $showCPU)
                 Toggle("RAM pressure", isOn: $showMemory)
                 Toggle("SSD usage", isOn: $showStorage)
-                Divider()
-                Toggle("Claude 5-hour limit", isOn: $showClaudeFiveHour)
-                    .disabled(!aiUsageEnabled)
-                Toggle("Codex 5-hour limit", isOn: $showChatGPTFiveHour)
-                    .disabled(!aiUsageEnabled)
             }
             .toggleStyle(.checkbox)
 

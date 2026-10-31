@@ -31,7 +31,6 @@ targets:
     dependencies:
       - package: KeyboardShortcuts
         product: KeyboardShortcuts
-      - sdk: Security.framework
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ivansandev.thetoolbox

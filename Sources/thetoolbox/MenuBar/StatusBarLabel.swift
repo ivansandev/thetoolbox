@@ -4,13 +4,9 @@ import SwiftUI
 /// retaining one click target for thetoolbox's menu.
 struct StatusBarLabel: View {
     @ObservedObject var monitor: SystemMonitor
-    @ObservedObject var usageManager: AIUsageManager
     @AppStorage(PreferenceKey.statusBarCPU) private var showCPU = false
     @AppStorage(PreferenceKey.statusBarMemory) private var showMemory = false
     @AppStorage(PreferenceKey.statusBarStorage) private var showStorage = false
-    @AppStorage(PreferenceKey.statusBarClaudeFiveHour) private var showClaudeFiveHour = false
-    @AppStorage(PreferenceKey.statusBarChatGPTFiveHour) private var showChatGPTFiveHour = false
-    @AppStorage(PreferenceKey.aiUsageEnabled) private var aiUsageEnabled = true
 
     var body: some View {
         Group {
@@ -32,9 +28,6 @@ struct StatusBarLabel: View {
         .onChange(of: showCPU) { _, _ in updatePolling() }
         .onChange(of: showMemory) { _, _ in updatePolling() }
         .onChange(of: showStorage) { _, _ in updatePolling() }
-        .onChange(of: showClaudeFiveHour) { _, _ in updateAIUsage() }
-        .onChange(of: showChatGPTFiveHour) { _, _ in updateAIUsage() }
-        .onChange(of: aiUsageEnabled) { _, _ in updateAIUsage() }
     }
 
     private var metricsText: Text {
@@ -42,12 +35,6 @@ struct StatusBarLabel: View {
         if showCPU { parts.append(metricText(value: monitor.cpuUsage)) }
         if showMemory { parts.append(metricText(value: monitor.pressureFraction)) }
         if showStorage { parts.append(metricText(value: monitor.diskUsage)) }
-        if aiUsageEnabled && showClaudeFiveHour {
-            parts.append(aiMetricText(label: "Claude", provider: .claude))
-        }
-        if aiUsageEnabled && showChatGPTFiveHour {
-            parts.append(aiMetricText(label: "Codex", provider: .chatGPT))
-        }
 
         guard let first = parts.first else { return Text("") }
         return parts.dropFirst().reduce(first) { $0 + Text("  ") + $1 }
@@ -57,12 +44,8 @@ struct StatusBarLabel: View {
         Text(percent(value))
     }
 
-    private func aiMetricText(label: String, provider: AIProviderID) -> Text {
-        Text("\(label) \(fiveHourPercent(for: provider))")
-    }
-
     private var hasSelectedMetric: Bool {
-        !selectedMetrics.isEmpty || (aiUsageEnabled && (showClaudeFiveHour || showChatGPTFiveHour))
+        !selectedMetrics.isEmpty
     }
 
     private var selectedMetrics: StatusBarMetrics {
@@ -78,36 +61,11 @@ struct StatusBarLabel: View {
         if showCPU { readings.append("CPU utilization \(percent(monitor.cpuUsage))") }
         if showMemory { readings.append("RAM pressure \(percent(monitor.pressureFraction))") }
         if showStorage { readings.append("SSD usage \(percent(monitor.diskUsage))") }
-        if aiUsageEnabled && showClaudeFiveHour {
-            readings.append("Claude five-hour usage remaining \(fiveHourPercent(for: .claude))")
-        }
-        if aiUsageEnabled && showChatGPTFiveHour {
-            readings.append("Codex five-hour usage remaining \(fiveHourPercent(for: .chatGPT))")
-        }
         return readings.joined(separator: ", ")
     }
 
     private func updatePolling() {
         monitor.setStatusBarMetrics(selectedMetrics)
-        updateAIUsage()
-    }
-
-    private func updateAIUsage() {
-        guard aiUsageEnabled else {
-            usageManager.stop()
-            return
-        }
-        var providers: Set<AIProviderID> = []
-        if showClaudeFiveHour { providers.insert(.claude) }
-        if showChatGPTFiveHour { providers.insert(.chatGPT) }
-        usageManager.start(providers: providers)
-    }
-
-    private func fiveHourPercent(for provider: AIProviderID) -> String {
-        guard let window = usageManager.states[provider]?.snapshot?.fiveHourSummaryWindow else {
-            return "—"
-        }
-        return "\(Int(window.remainingPercent.rounded()))%"
     }
 
     private func percent(_ value: Double) -> String {
