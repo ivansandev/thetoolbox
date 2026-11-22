@@ -7,6 +7,7 @@ struct StatusBarLabel: View {
     @AppStorage(PreferenceKey.statusBarCPU) private var showCPU = false
     @AppStorage(PreferenceKey.statusBarMemory) private var showMemory = false
     @AppStorage(PreferenceKey.statusBarStorage) private var showStorage = false
+    @AppStorage(PreferenceKey.monitorRefreshInterval) private var refreshSeconds = MonitorRefresh.defaultSeconds
 
     var body: some View {
         Group {
@@ -28,6 +29,7 @@ struct StatusBarLabel: View {
         .onChange(of: showCPU) { _, _ in updatePolling() }
         .onChange(of: showMemory) { _, _ in updatePolling() }
         .onChange(of: showStorage) { _, _ in updatePolling() }
+        .onChange(of: refreshSeconds) { _, _ in updatePolling() }
     }
 
     private var metricsText: Text {
@@ -65,6 +67,7 @@ struct StatusBarLabel: View {
     }
 
     private func updatePolling() {
+        monitor.setRefreshInterval(TimeInterval(refreshSeconds))
         monitor.setStatusBarMetrics(selectedMetrics)
     }
 

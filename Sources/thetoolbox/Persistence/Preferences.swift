@@ -4,6 +4,7 @@ enum PreferenceKey {
     static let statusBarCPU = "statusBarCPU.v1"
     static let statusBarMemory = "statusBarMemory.v1"
     static let statusBarStorage = "statusBarStorage.v1"
+    static let monitorRefreshInterval = "monitorRefreshInterval.v1"
     static let presentationModeActive = "presentationModeActive.v1"
     static let presentationModeSnapshot = "presentationModeSnapshot.v1"
     static let leaveRoomForStageManager = "leaveRoomForStageManager.v1"
@@ -13,6 +14,12 @@ enum PreferenceKey {
     static let windowSwitcherScope = "windowSwitcherScope.v1"
     static let windowSwitcherIncludeMinimized = "windowSwitcherIncludeMinimized.v1"
     static let windowSwitcherIncludeHidden = "windowSwitcherIncludeHidden.v1"
+}
+
+/// Refresh choices for the hardware monitor, in seconds. Longer intervals wake the app less often.
+enum MonitorRefresh {
+    static let options: [Int] = [1, 2, 5, 10, 30, 60]
+    static let defaultSeconds = 10
 }
 
 /// Persisted per-display settings. Keyed by the display's stable UUID so they survive

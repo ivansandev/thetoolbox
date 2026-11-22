@@ -33,8 +33,10 @@ struct FanReading: Identifiable {
 /// `ps` invocation for the top-consumer lists — no third-party dependencies.
 ///
 /// Lightweight sampling runs while at least one status-bar metric is enabled. Opening the menu
-/// samples all metrics and additionally reads details such as top processes and fans. CPU% is a
-/// delta between successive tick snapshots, so the previous snapshot is kept across polling
+/// samples all metrics and additionally reads details such as top processes and fans. Samples are
+/// taken once per user-chosen refresh interval. CPU% is a delta between successive tick snapshots,
+/// so each reading is the exact average over the interval at no extra cost; memory and storage are
+/// point-in-time levels read on the same tick. The previous CPU snapshot is kept across polling
 /// transitions.
 final class SystemMonitor: ObservableObject {
     // CPU
@@ -73,6 +75,7 @@ final class SystemMonitor: ObservableObject {
     private var previousTicks: (user: UInt64, system: UInt64, idle: UInt64, nice: UInt64)?
     private var statusBarMetrics: StatusBarMetrics = []
     private var isMenuVisible = false
+    private var refreshInterval = TimeInterval(MonitorRefresh.defaultSeconds)
 
     init() {
         coreSummary = Self.coreSummary()
@@ -93,6 +96,17 @@ final class SystemMonitor: ObservableObject {
     func setStatusBarMetrics(_ metrics: StatusBarMetrics) {
         guard statusBarMetrics != metrics else { return }
         statusBarMetrics = metrics
+        reconcilePolling()
+    }
+
+    /// Sets how often readings refresh (seconds). Restarts a running timer at the new cadence.
+    func setRefreshInterval(_ seconds: TimeInterval) {
+        let seconds = max(1, seconds)
+        guard refreshInterval != seconds else { return }
+        refreshInterval = seconds
+        guard timer != nil else { return }
+        timer?.invalidate()
+        timer = nil
         reconcilePolling()
     }
 
@@ -121,7 +135,8 @@ final class SystemMonitor: ObservableObject {
 
         refresh()
         guard timer == nil else { return }
-        let t = Timer(timeInterval: 2, repeats: true) { [weak self] _ in self?.refresh() }
+        let t = Timer(timeInterval: refreshInterval, repeats: true) { [weak self] _ in self?.refresh() }
+        t.tolerance = refreshInterval * 0.1   // lets macOS coalesce wakeups with other timers
         RunLoop.main.add(t, forMode: .common)
         timer = t
     }
